@@ -215,7 +215,7 @@ export default function Hero() {
       </div>
 
       {/* Bottom: Event Meta, Developer Credit & Decorative Sparkle */}
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-6 pb-4 flex items-center justify-between border-t border-gold/10 pt-4 mt-8 gap-4">
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-6 pb-4 flex flex-wrap items-center justify-between border-t border-gold/10 pt-4 mt-8 gap-y-2 gap-x-4">
 
         {/* Event Meta Line */}
         <div className="flex items-center gap-2 text-stone-400 text-[10px] sm:text-xs font-sans flex-shrink-0">
@@ -228,7 +228,7 @@ export default function Hero() {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 1 }}
-          className="flex-grow text-center hidden sm:block"
+          className="w-full sm:flex-grow text-center sm:w-auto order-last sm:order-none"
         >
           <span className="inline-flex items-center gap-1.5 text-[9px] sm:text-[10px] font-sans tracking-widest text-gold/40 hover:text-gold/70 transition-colors duration-300 select-none cursor-default">
             <svg className="w-3 h-3 text-gold/40" fill="currentColor" viewBox="0 0 24 24">
