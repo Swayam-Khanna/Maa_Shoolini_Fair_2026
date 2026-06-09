@@ -1,36 +1,192 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Getting Started
+# 🪔 Maa Shoolini Fair 2026
 
-First, run the development server:
+### *A premium devotional web experience — built for the grandest festival of Solan, Himachal Pradesh.*
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+[![Next.js](https://img.shields.io/badge/Next.js-16.2.7-black?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.x-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Framer Motion](https://img.shields.io/badge/Framer_Motion-Latest-EF0091?style=flat-square&logo=framer&logoColor=white)](https://framer.com/motion)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square)](LICENSE)
+[![Build](https://img.shields.io/badge/Build-Passing-22C55E?style=flat-square)](#)
+
+> *॥ जय माँ शूलिनी ॥*
+
+</div>
+
+---
+
+## 📸 Screenshots
+
+### 🏠 Home — Hero Section
+> Live countdown timer · Gold-framed photo gallery · Bilingual toggle · Developer credit
+
+![Home Page](public/screenshots/home.png)
+
+---
+
+### 🌸 Darshan — Pushp Varsha (पुष्प वर्षा)
+> Tap **"पुष्प वर्षा / Shower Flowers"** and watch rose petals & marigolds rain down across the entire screen at 60 fps
+
+![Darshan Page – Flower Shower](public/screenshots/darshan.png)
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---|---|
+| 🕐 **Live Countdown Timer** | Real-time countdown to June 26, 2026 — updates every second |
+| 🌸 **Pushp Varsha (पुष्प वर्षा)** | Full-screen Canvas particle shower — rose petals & marigolds at 60 fps |
+| 🪔 **Sacred Darshan Stage** | Deity portrait in double gold-rimmed frame with inner vignette & filigree |
+| 🎡 **Medallion Event Slider** | Horizontal snap-scroll carousel with floating gold diamond nav buttons |
+| 🖼️ **Photo Lightbox Gallery** | Click-to-expand gold-framed gallery with backdrop blur |
+| 🌐 **Bilingual (EN / हिं)** | Full English ↔ Hindi toggle across all pages |
+| 📱 **Fully Responsive** | Mobile-first, tested 320 px → 1920 px |
+| ⚡ **Static Pre-rendering** | All 8 routes pre-rendered — zero server needed for deployment |
+| 🎶 **Aarti Drawer** | Devotional Aarti side panel with animated diya |
+| 🗓️ **3-Day Schedule** | Complete event schedule with filterable categories |
+| 🗺️ **Visitor Info** | Transport, accommodation & FAQ for devotees |
+
+---
+
+## 🗂️ Project Structure
+
+```
+MaaShoolini_Project/
+├── public/
+│   ├── deities.jpg              # Maa Shoolini sacred deity photograph
+│   ├── temple.png               # Shoolini Mata Temple hero image
+│   ├── hero-bg.jpg              # Background texture
+│   └── screenshots/
+│       ├── home.png             # Home page screenshot
+│       └── darshan.png          # Darshan + flower shower screenshot
+└── src/
+    ├── app/
+    │   ├── page.tsx             # 🏠 Home
+    │   ├── layout.tsx           # Root layout + Google Fonts
+    │   ├── globals.css          # Design tokens & keyframe animations
+    │   ├── darshan/             # 🌸 Darshan + Pushp Varsha
+    │   ├── attractions/         # Fair attractions & highlights
+    │   ├── devotional-wall/     # Devotee blessings wall
+    │   ├── mela-details/        # History & significance
+    │   ├── schedule/            # 3-day event schedule
+    │   └── visitor-info/        # Travel, stay & FAQs
+    └── components/
+        ├── Hero.tsx             # Hero section (countdown, gallery)
+        ├── Navbar.tsx           # Top navigation bar
+        ├── DarshanStage.tsx     # 🌸 Full-screen canvas flower shower
+        ├── MedallionSlider.tsx  # Horizontal snap-scroll carousel
+        ├── AartiDrawer.tsx      # Aarti devotional panel
+        ├── Footer.tsx           # Site footer
+        ├── LanguageToggle.tsx   # EN ↔ हिं toggle
+        ├── Attractions.tsx      # Attraction feature cards
+        ├── Timeline.tsx         # Schedule timeline component
+        └── VisitorInfo.tsx      # Visitor information section
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🚀 Getting Started
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Prerequisites
+- Node.js `>= 18.x`
+- npm `>= 9.x`
 
-## Learn More
+### Installation & Development
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Clone the repository
+git clone https://github.com/Swayam-Khanna/Maa_Shoolini_Fair_2026.git
+cd Maa_Shoolini_Fair_2026
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Install dependencies
+npm install
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Start the development server
+npm run dev
+```
 
-## Deploy on Vercel
+Open [http://localhost:3000](http://localhost:3000) in your browser 🙏
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Production Build
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build   # Generates static output
+npm start       # Serves production build locally
+```
+
+> All 8 routes pre-render as static HTML — deploy directly to Vercel, Netlify, or any static host.
+
+---
+
+## 🌸 Pushp Varsha — Technical Deep Dive
+
+The flower shower on `/darshan` is built with a hand-crafted **HTML5 Canvas 2D particle engine**:
+
+```
+• Zero runtime dependencies — pure Canvas 2D API
+• 90 petals per burst (mix of teardrop rose petals + oval marigold discs)
+• Physics: gravity (vy), sinusoidal sway, per-petal angular rotation
+• Colour palettes: 5 rose reds + 5 marigold ambers, randomly sampled
+• Fade-out zone: petals gracefully fade in the bottom 20% of viewport
+• rAF lifecycle: loop auto-cancels when canvas is empty (zero idle cost)
+• DPR-aware: crisp rendering on all HiDPI / Retina displays
+• Canvas is fixed inset-0 (pointer-events: none) — covers full screen
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Technology | Version | Purpose |
+|---|---|---|
+| **Next.js** | 16.2.7 | Framework, App Router, static export |
+| **TypeScript** | 5.x | Full type safety |
+| **Tailwind CSS** | 3.x | Utility-first design system |
+| **Framer Motion** | Latest | Transitions & micro-animations |
+| **HTML5 Canvas API** | Native | 60 fps full-screen particle system |
+| **Lucide React** | Latest | Icon system |
+| **Google Fonts** | — | Cinzel Decorative · Inter · Noto Sans Devanagari |
+
+---
+
+## 📄 Routes
+
+| Route | Page |
+|---|---|
+| `/` | Home – Hero, countdown, gallery, event slider |
+| `/darshan` | 🌸 Sacred Darshan + Pushp Varsha flower shower |
+| `/attractions` | Highlights & activities |
+| `/schedule` | 3-day event schedule (June 26–28) |
+| `/mela-details` | History & significance of Maa Shoolini Mela |
+| `/devotional-wall` | Devotee blessings & messages |
+| `/visitor-info` | Transport, stay & FAQs |
+
+---
+
+## 🙏 Credits
+
+<div align="center">
+
+| | |
+|---|---|
+| 👨‍💻 **Developer** | **Swayam Khanna** — Software Engineer |
+| 🎨 **Design System** | Custom premium dark-mode gold-crimson UI |
+| 📸 **Photography** | Sacred photographs of Maa Shoolini Deities, Solan |
+| 🏔️ **Inspired by** | The divine Maa Shoolini Devi Mela, Solan, Himachal Pradesh |
+
+</div>
+
+---
+
+<div align="center">
+
+**॥ जय माँ शूलिनी ॥**
+
+Made with ❤️ & devotion by **[Swayam Khanna](https://github.com/Swayam-Khanna)**
+
+*© 2026 Maa Shoolini Fair. All rights reserved.*
+
+</div>
