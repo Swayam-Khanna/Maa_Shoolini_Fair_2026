@@ -474,36 +474,18 @@ export default function ParkingFinder() {
     const L = (window as any).L;
     if (!isLeafletLoaded || !L || zones.length === 0) return;
 
-    // 1. Initialize Map container — pick the visible container based on viewport.
-    //    Mobile (<lg) uses solan-map-mobile; desktop uses solan-map-desktop.
-    //    We destroy and re-create if the active container changes (e.g. on resize).
-    const isMobile = window.matchMedia("(max-width: 1023px)").matches;
-    const containerId = isMobile ? "solan-map-mobile" : "solan-map-desktop";
-    const containerEl = document.getElementById(containerId);
-
-    if (!containerEl) return; // container not yet in DOM (wrong breakpoint branch)
-
-    // If map already exists but is attached to a different container, destroy it
-    if (mapRef.current && mapRef.current.getContainer().id !== containerId) {
-      mapRef.current.remove();
-      mapRef.current = null;
-      markersRef.current = {};
-      polylinesRef.current = [];
-    }
-
     if (!mapRef.current) {
-      mapRef.current = L.map(containerId, {
+      mapRef.current = L.map("solan-map", {
         zoomControl: false,
         attributionControl: false,
-        // GPU canvas rendering — avoids hundreds of SVG DOM nodes on mobile
         preferCanvas: true,
       }).setView([30.9082, 77.1031], 14);
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        maxZoom: 20
+        maxZoom: 20,
       }).addTo(mapRef.current);
 
-      // Zoom controls top-right — avoids overlap with mobile notch and bottom drawer
+      // topright keeps zoom buttons away from mobile notch and home indicator
       L.control.zoom({ position: "topright" }).addTo(mapRef.current);
     }
 
@@ -777,91 +759,128 @@ export default function ParkingFinder() {
   }), [zones, activeFilter]);
 
   return (
-    <>
-      {/* ════════════════════════════════════════════════════════════════
-          MOBILE LAYOUT  (hidden on lg+)
-          Full-screen map + sliding bottom-sheet drawer
-      ════════════════════════════════════════════════════════════════ */}
-      <div className="block lg:hidden relative w-full" style={{ height: "calc(100vh - 64px)" }}>
+    <section className="min-h-screen bg-[#fcfbf9] relative">
+      {/* Subtle decorative blobs */}
+      <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-72 h-72 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Decorative blobs — pointer-events off so they never steal touches */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none z-0" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-4 sm:space-y-6 relative z-10">
 
-        {/* ── Full-screen Leaflet map ── */}
-        <div
-          id="solan-map-mobile"
-          className="absolute inset-0 w-full h-full z-0"
-          style={{ background: "#f5f3f0" }}
+        {/* Back link */}
+        <Link
+          href="/visitor-info"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-500 hover:text-red-950 transition-colors min-h-[44px]"
         >
-          {!isLeafletLoaded && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 bg-stone-100 z-10">
-              <div className="w-8 h-8 border-[3px] border-amber-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs text-stone-500 font-serif">Initializing Solan Map...</p>
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to Logistics Guide
+        </Link>
+
+        {/* ── Compact header card ── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1.5 min-w-0">
+              <div className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200/60 px-3 py-1 rounded-full text-[9px] font-black text-blue-600 uppercase tracking-widest">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500" />
+                </span>
+                Live Sensor Stream
+              </div>
+              <h1 className="text-xl sm:text-3xl font-serif font-black text-red-950 leading-tight">
+                🅿️ Live Parking &amp; Traffic Map
+              </h1>
+              <p className="text-stone-500 text-xs sm:text-sm font-sans leading-relaxed hidden sm:block">
+                Real-time vehicle entries and exits across all Solan parking zones.
+              </p>
             </div>
-          )}
-        </div>
 
-        {/* ── Floating header strip over the map ── */}
-        <div className="absolute top-0 left-0 right-0 z-[500] px-4 pt-3 pb-2 flex items-center justify-between gap-3 bg-gradient-to-b from-white/90 to-white/0 backdrop-blur-[2px]">
-          <div className="flex items-center gap-2">
-            <Link
-              href="/visitor-info"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/90 border border-slate-200 shadow-sm text-stone-600"
-              aria-label="Back"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-            <span className="text-sm font-serif font-black text-red-950">🅿️ Live Parking</span>
-          </div>
-
-          {/* Live status pill */}
-          <div className="inline-flex items-center gap-1.5 bg-white/90 border border-blue-200/60 px-3 py-1.5 rounded-full text-[9px] font-black text-blue-600 uppercase tracking-widest shadow-sm">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500" />
-            </span>
-            Live
-          </div>
-        </div>
-
-        {/* ── Bottom sheet drawer ── */}
-        <AnimatePresence initial={false}>
-          <motion.div
-            key="mobile-drawer"
-            initial={{ y: "calc(100% - 120px)" }}
-            animate={{ y: isDrawerOpen ? 0 : "calc(100% - 120px)" }}
-            transition={{ type: "spring", stiffness: 320, damping: 32 }}
-            className="absolute bottom-0 left-0 right-0 z-[1000] bg-white rounded-t-3xl shadow-[0_-8px_30px_rgb(0,0,0,0.09)] flex flex-col"
-            style={{ maxHeight: "calc(100vh - 64px - 48px)" }}
-          >
-            {/* Drag pill + tap-to-toggle */}
-            <button
-              className="w-full flex flex-col items-center pt-2 pb-1 cursor-pointer focus:outline-none min-h-[44px]"
-              onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-              aria-label={isDrawerOpen ? "Collapse drawer" : "Expand drawer"}
-            >
-              <div className="w-12 h-1 bg-slate-200 rounded-full mb-1" />
-              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest pb-1">
-                {isDrawerOpen ? "▾ Collapse" : "▴ Route Info"}
+            {/* Sync badge */}
+            <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/50 px-3 py-2 rounded-xl text-[11px] font-semibold text-stone-500 shadow-sm shrink-0">
+              <Wifi className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="hidden sm:inline">
+                {lastUpdated ? `Last sync: ${lastUpdated.toLocaleTimeString("en-IN", { hour12: false })}` : "Connecting…"}
               </span>
-            </button>
+              <span className="sm:hidden">
+                {lastUpdated ? lastUpdated.toLocaleTimeString("en-IN", { hour12: false }) : "…"}
+              </span>
+              <button
+                onClick={fetchLiveParking}
+                className="hover:text-red-950 transition-transform hover:rotate-180 duration-300 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+                aria-label="Refresh"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
+              </button>
+            </div>
+          </div>
 
-            {/* ── Collapsed preview: Advisory + 4-route chips ── */}
-            <div className="px-5 pb-3 space-y-3 border-b border-slate-100">
-              {/* 4-route traffic chips */}
-              <div className="grid grid-cols-2 gap-2">
+          {/* Traffic advisory strip */}
+          <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200/60 rounded-xl">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] sm:text-xs text-amber-800 font-sans leading-snug">
+              <span className="font-bold">Traffic Advisory:</span> Mall Road is pedestrian-only 12 PM–11 PM. Use designated bypass entry routes shown on the map.
+            </p>
+          </div>
+        </div>
+
+        {/* ── Main responsive grid ── */}
+        {/* Mobile: single column stack | Desktop: map (2 cols) + side panel (1 col) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 items-start">
+
+          {/* ── Left / Top: Map + Route assistant ── */}
+          <div className="lg:col-span-2 space-y-4">
+
+            {/* Map container — responsive height */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-2 sm:p-3">
+              <div
+                id="solan-map"
+                className="w-full h-[260px] sm:h-[360px] lg:h-[480px] xl:h-[540px] rounded-xl overflow-hidden relative"
+                style={{ background: "#f5f3f0" }}
+              >
+                {!isLeafletLoaded && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-stone-100 rounded-xl z-10">
+                    <div className="w-7 h-7 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-xs text-stone-500 font-serif">Loading Solan Map…</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Map legend — horizontal scroll on mobile */}
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3 flex items-center gap-4 overflow-x-auto">
+              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest shrink-0">Markers:</span>
+              {[
+                { color: "bg-emerald-500", label: "Available" },
+                { color: "bg-orange-500", label: "Critical (1-5)" },
+                { color: "bg-rose-600", label: "Housefull" },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-1.5 text-[10px] font-bold text-stone-600 shrink-0">
+                  <span className={`w-3 h-3 rounded-full ${item.color} border-2 border-white shadow-sm`} />
+                  {item.label}
+                </div>
+              ))}
+            </div>
+
+            {/* Smart Routing Assistant */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-5 space-y-3">
+              <div className="flex items-center gap-2 border-b border-stone-100 pb-2.5">
+                <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                <h3 className="font-serif font-black text-xs sm:text-sm text-red-950 uppercase tracking-wide">
+                  🎯 Smart Routing Assistant
+                </h3>
+              </div>
+
+              {/* Route status chips — 2×2 on mobile, 4×1 on xl */}
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
                 {([
                   { key: "route1", label: "Chambaghat", status: statuses.route1 },
-                  { key: "route2", label: "Saproon", status: statuses.route2 },
+                  { key: "route2", label: "Saproon Chowk", status: statuses.route2 },
                   { key: "route3", label: "NH-5 Bypass", status: statuses.route3 },
                   { key: "route4", label: "Rajgarh Link", status: statuses.route4 },
                 ] as const).map(({ key, label, status }) => (
-                  <div key={key} className="flex items-center gap-2 px-3 py-2.5 bg-stone-50 rounded-xl border border-stone-100/60 min-h-[44px]">
-                    <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${
-                        status === "Red" ? "bg-red-500 animate-pulse" : status === "Orange" ? "bg-orange-400" : "bg-emerald-500"
-                      }`}
-                    />
+                  <div key={key} className="flex items-center gap-2 px-3 py-2.5 bg-stone-50 rounded-xl border border-stone-100 min-h-[44px]">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${
+                      status === "Red" ? "bg-red-500 animate-pulse" : status === "Orange" ? "bg-orange-400" : "bg-emerald-500"
+                    }`} />
                     <div className="min-w-0">
                       <span className="text-[9px] text-stone-400 font-bold uppercase tracking-wider block truncate">{label}</span>
                       <span className="text-xs font-black text-stone-700">{status}</span>
@@ -870,363 +889,134 @@ export default function ParkingFinder() {
                 ))}
               </div>
 
-              {/* Smart advisory banner */}
-              <div className={`px-3 py-2.5 rounded-xl border text-xs font-medium font-sans leading-relaxed ${
+              {/* Advisory */}
+              <div className={`px-3.5 py-3 rounded-xl border text-xs font-medium font-sans leading-relaxed ${
                 (statuses.route2 === "Red" && statuses.route3 === "Red")
                   ? "bg-red-50/70 border-red-100 text-red-800"
                   : (statuses.route2 === "Red" || statuses.route3 === "Red")
                   ? "bg-amber-50/70 border-amber-200/50 text-amber-900"
                   : "bg-emerald-50/70 border-emerald-100 text-emerald-800"
               }`}>
-                {statuses.route2 === "Red" && statuses.route3 === "Red"
-                  ? "⚠️ High congestion on main corridors. Use bypass routes & free shuttle."
-                  : statuses.route2 === "Red"
-                  ? "⚠️ Saproon entry congested. Consider Solan Bypass + RTO shuttle."
-                  : statuses.route3 === "Red"
-                  ? "⚠️ NH-5 Bypass gridlocked. Enter via Chambaghat for faster access."
-                  : "🟢 All entry corridors flowing normally. Parking accessible."}
-              </div>
-            </div>
-
-            {/* ── Expanded content: Filter tabs + Zone cards ── */}
-            {isDrawerOpen && (
-              <div className="flex-1 overflow-y-auto px-5 pb-6 pt-4 space-y-4">
-                {/* Vehicle filter buttons */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(["All", "Car Only", "Bike Only"] as FilterType[]).map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setActiveFilter(f)}
-                      className={`px-4 rounded-xl text-xs font-bold font-sans border transition-all duration-200 cursor-pointer shadow-sm min-h-[44px] ${
-                        activeFilter === f
-                          ? "bg-amber-600 border-amber-600 text-white"
-                          : "bg-white text-stone-600 border-slate-200 hover:border-amber-400"
-                      }`}
-                    >
-                      {f === "All" ? "🚗 All" : f === "Car Only" ? "🚗 Cars" : "🏍️ Bikes"}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Zone lot cards */}
-                <div className="space-y-4">
-                  {filteredZones.map((zone) => (
-                    <ZoneCard
-                      key={zone.parkingId}
-                      zone={zone}
-                      onSimulatePing={handleSimulatePing}
-                      onCommunityVote={handleCommunityVote}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Leaflet tooltip CSS — injected once per mount */}
-        <style dangerouslySetInnerHTML={{ __html: `
-          .leaflet-route-tooltip {
-            background-color: rgba(30, 41, 59, 0.9) !important;
-            border: 1px solid rgba(255,255,255,0.15) !important;
-            border-radius: 4px !important;
-            color: #ffffff !important;
-            font-size: 8px !important;
-            font-weight: 800 !important;
-            padding: 2px 4px !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-            white-space: nowrap !important;
-            pointer-events: none !important;
-          }
-          .leaflet-tooltip-left:before, .leaflet-tooltip-right:before { border: none !important; }
-          .custom-pulse-marker { background: transparent !important; border: none !important; }
-        `}} />
-      </div>
-
-      {/* ════════════════════════════════════════════════════════════════
-          DESKTOP LAYOUT  (hidden below lg)
-          Traditional 3-column scrollable page
-      ════════════════════════════════════════════════════════════════ */}
-      <section className="hidden lg:block min-h-screen bg-[#fcfbf9] py-8 px-6 relative overflow-hidden">
-        {/* Decorative background vectors */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="max-w-7xl mx-auto space-y-8 relative z-10">
-
-          {/* Back navigation */}
-          <Link
-            href="/visitor-info"
-            className="inline-flex items-center gap-2 text-xs font-sans font-bold text-stone-500 hover:text-red-950 transition-colors duration-200 min-h-[44px]"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Logistics Guide
-          </Link>
-
-          {/* ─── Header Panel ─── */}
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 xl:p-8 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200/60 px-4 py-1.5 rounded-full text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                  </span>
-                  REAL-TIME SENSOR STREAM DEPLOYED
-                </div>
-                <h1 className="text-3xl xl:text-4xl font-serif font-black text-red-950">
-                  🅿️ Live Map Traffic &amp; Parking Tracker
-                </h1>
-                <p className="text-stone-600 text-sm font-sans leading-relaxed max-w-3xl">
-                  Observe live vehicle entries and exits mapped in real-time across Solan. Use the Developer Sensor Simulator to trigger hardware inflow/outflow events and watch the map popups and stats recompute instantly.
-                </p>
+                {(() => {
+                  const s2r = statuses.route2 === "Red";
+                  const s3r = statuses.route3 === "Red";
+                  const s1r = statuses.route1 === "Red";
+                  const busFull = zones.find(z => z.parkingId === "old-bus-stand")?.availableSpots === 0;
+                  const r4g = statuses.route4 === "Green";
+                  if (s2r && busFull && r4g) return <span><b>🎯 Smart Advice:</b> Old Bus Stand full. Take Rajgarh Road Bypass — bypasses Mall Road entirely onto clear NH-5.</span>;
+                  if (s1r && s2r && s3r) return <span><b>🚘 Peak Rush:</b> All corridors congested. Use outer bypass lots and free RTO shuttles.</span>;
+                  if (s3r && !s1r) return <span><b>⚠️ Alert:</b> NH-5 Bypass gridlocked. Divert via Chambaghat for faster access to vacant lots.</span>;
+                  if (s2r) return <span><b>⚠️ Alert:</b> Saproon entry congested. Park at Bypass Mega Overflow + take the free RTO shuttle.</span>;
+                  return <span><b>🟢 All Clear:</b> Primary entry routes are flowing normally. All parking zones accessible.</span>;
+                })()}
               </div>
 
-              <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/50 p-2.5 rounded-xl shrink-0 self-start text-[11px] font-sans font-semibold text-stone-500 shadow-sm min-h-[44px]">
-                <Wifi className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                {lastUpdated ? (
-                  <span>Last Poll: {lastUpdated.toLocaleTimeString("en-IN", { hour12: false })}</span>
-                ) : (
-                  <span>Connecting…</span>
-                )}
-                <button
-                  onClick={fetchLiveParking}
-                  className="hover:text-red-950 p-1 cursor-pointer transition-transform duration-300 hover:rotate-180 min-h-[44px] min-w-[44px] flex items-center justify-center"
-                  aria-label="Refresh data"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200/60 rounded-2xl">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block font-serif">Traffic Advisory</span>
-                <p className="text-xs text-amber-700 font-sans leading-relaxed">
-                  Central Mall Road is strictly pedestrian-only from 12:00 PM – 11:00 PM. Follow the designated access routes (highlighted inside cards) to bypass city gridlocks.
-                </p>
-              </div>
+              {/* Leaflet tooltip styles */}
+              <style dangerouslySetInnerHTML={{ __html: `
+                .leaflet-route-tooltip {
+                  background-color: rgba(30,41,59,0.9) !important;
+                  border: 1px solid rgba(255,255,255,0.15) !important;
+                  border-radius: 4px !important; color:#fff !important;
+                  font-size: 8px !important; font-weight: 800 !important;
+                  padding: 2px 4px !important; pointer-events: none !important;
+                  white-space: nowrap !important;
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+                }
+                .leaflet-tooltip-left:before, .leaflet-tooltip-right:before { border: none !important; }
+                .custom-pulse-marker { background: transparent !important; border: none !important; }
+              `}} />
             </div>
           </div>
 
-          {/* ─── Desktop 3-column grid: map (2 cols) + panel (1 col) ─── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* ── Right / Bottom: Filter + Cards side panel ── */}
+          <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-6">
 
-            {/* ── Left: Map (spans 2 of 3 cols) ── */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-3">
-                <div
-                  id="solan-map-desktop"
-                  className="w-full h-[480px] xl:h-[560px] rounded-2xl overflow-hidden relative z-0"
-                  style={{ background: "#f5f3f0" }}
-                >
-                  {!isLeafletLoaded && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 bg-stone-100 rounded-2xl z-10">
-                      <div className="w-8 h-8 border-[3px] border-amber-500 border-t-transparent rounded-full animate-spin" />
-                      <p className="text-xs text-stone-500 font-serif">Initializing Solan Map Coordinates...</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Map marker legend */}
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-wrap justify-between items-center gap-3">
-                <span className="text-[10px] font-sans font-bold text-stone-400 uppercase tracking-widest">Map Markers:</span>
-                <div className="flex flex-wrap gap-4">
-                  {[
-                    { color: "bg-emerald-500", label: "Available (> 5 spots)" },
-                    { color: "bg-orange-500", label: "Critical (1-5 left)" },
-                    { color: "bg-rose-600", label: "HOUSEFULL" },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center gap-2 text-[10px] font-sans font-bold text-stone-600">
-                      <span className={`w-3.5 h-3.5 rounded-full ${item.color} border-2 border-white shadow-sm shrink-0`} />
-                      <span>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Smart Routing Assistant */}
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
-                <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
-                  <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-                  <h3 className="font-serif font-black text-sm text-red-950 uppercase tracking-wider">
-                    🎯 Shoolini Fair Smart Routing Assistant
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                  {([
-                    { key: "route1", label: "Route 1: Chambaghat", status: statuses.route1 },
-                    { key: "route2", label: "Route 2: Saproon", status: statuses.route2 },
-                    { key: "route3", label: "Route 3: NH-5 Bypass", status: statuses.route3 },
-                    { key: "route4", label: "Route 4: Rajgarh Shortcut", status: statuses.route4 },
-                  ] as const).map(({ key, label, status }) => (
-                    <div key={key} className="p-3 bg-stone-50 rounded-xl border border-stone-100/50 space-y-1.5 min-h-[44px]">
-                      <span className="text-[9px] text-stone-400 font-bold block uppercase tracking-wider truncate">{label}</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${
-                          status === "Red" ? "bg-red-500 animate-pulse" : status === "Orange" ? "bg-orange-500" : "bg-emerald-500"
-                        }`} />
-                        <span className="text-xs font-black text-stone-700">{status}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Dynamic advisory */}
-                <div className={`p-4 rounded-xl border text-xs font-medium font-sans leading-relaxed ${
-                  (statuses.route1 === "Red" && statuses.route2 === "Red" && statuses.route3 === "Red") || (statuses.route2 === "Red" && statuses.route3 === "Red")
-                    ? "bg-red-50/60 border-red-100 text-red-800"
-                    : statuses.route2 === "Red" || statuses.route3 === "Red"
-                    ? "bg-amber-50/60 border-amber-200/50 text-amber-900"
-                    : "bg-emerald-50/60 border-emerald-100 text-emerald-800"
-                }`}>
-                  {(() => {
-                    const saproonRed = statuses.route2 === "Red";
-                    const busFull = zones.find(z => z.parkingId === "old-bus-stand")?.availableSpots === 0;
-                    const rajgarhGreen = statuses.route4 === "Green";
-                    if (saproonRed && busFull && rajgarhGreen) return (
-                      <div className="flex gap-2"><Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                        <span>🎯 <b>Smart Route Advice:</b> Bottleneck at Old Bus Stand. Use Rajgarh Road Bypass — bypasses Mall Road entirely onto clear NH-5.</span></div>
-                    );
-                    if (statuses.route1 === "Red" && statuses.route2 === "Red" && statuses.route3 === "Red") return (
-                      <div className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
-                        <span>🚘 <b>Peak Festival Rush:</b> High congestion on all entry gates. Use outer bypass lots and free RTO shuttles.</span></div>
-                    );
-                    if (statuses.route3 === "Red" && statuses.route1 === "Green") return (
-                      <div className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                        <span>⚠️ <b>Traffic Alert:</b> NH-5 Bypass gridlocked. Divert via Chambaghat Chowk for faster access.</span></div>
-                    );
-                    if (statuses.route2 === "Red") return (
-                      <div className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                        <span>⚠️ <b>Traffic Alert:</b> Saproon Entry congested. Park at Bypass Mega Overflow and take the free RTO shuttle.</span></div>
-                    );
-                    return (
-                      <div className="flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
-                        <span>🟢 <b>Traffic Flow Normal:</b> All primary entry routes into Solan Mall Road are clear and accessible.</span></div>
-                    );
-                  })()}
-                </div>
-
-                {/* Leaflet tooltip styles */}
-                <style dangerouslySetInnerHTML={{ __html: `
-                  .leaflet-route-tooltip {
-                    background-color: rgba(30, 41, 59, 0.9) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-                    border-radius: 4px !important;
-                    color: #ffffff !important;
-                    font-size: 8px !important;
-                    font-weight: 800 !important;
-                    padding: 2px 4px !important;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-                    white-space: nowrap !important;
-                    pointer-events: none !important;
-                  }
-                  .leaflet-tooltip-left:before, .leaflet-tooltip-right:before { border: none !important; }
-                  .custom-pulse-marker { background: transparent !important; border: none !important; }
-                `}} />
-              </div>
-            </div>
-
-            {/* ── Right panel: Filter + Simulator + Zone cards ── */}
-            <div className="lg:col-span-1 space-y-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-100px)] lg:overflow-y-auto">
-
-              {/* Filter + Simulator trigger row */}
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  {(["All", "Car Only", "Bike Only"] as FilterType[]).map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setActiveFilter(f)}
-                      className={`px-3 rounded-xl text-xs font-bold font-sans border transition-all duration-200 cursor-pointer shadow-sm min-h-[44px] ${
-                        activeFilter === f
-                          ? "bg-amber-600 border-amber-600 text-white"
-                          : "bg-white text-stone-600 border-slate-100 hover:border-amber-400"
-                      }`}
-                    >
-                      {f === "All" ? "🚗 All" : f === "Car Only" ? "🚗 Cars" : "🏍️ Bikes"}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => setIsSimulatorOpen(!isSimulatorOpen)}
-                  className={`flex items-center gap-2 px-3 rounded-xl text-xs font-extrabold font-sans border cursor-pointer shadow-sm transition-all duration-200 min-h-[44px] ${
-                    isSimulatorOpen
-                      ? "bg-slate-900 border-slate-900 text-amber-400 font-black"
-                      : "bg-white text-stone-700 border-slate-100 hover:border-slate-300"
-                  }`}
-                >
-                  <Sliders className="w-3.5 h-3.5 shrink-0" />
-                  <span>Sensor Emulator</span>
-                </button>
-              </div>
-
-              {/* Collapsible Simulator Panel */}
-              <AnimatePresence>
-                {isSimulatorOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}
-                    className="bg-slate-900 text-white rounded-3xl p-5 border border-slate-800 shadow-md space-y-4 overflow-hidden"
+            {/* Filter + Simulator trigger */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                {(["All", "Car Only", "Bike Only"] as FilterType[]).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFilter(f)}
+                    className={`px-3 rounded-xl text-xs font-bold border transition-all duration-200 cursor-pointer shadow-sm min-h-[44px] ${
+                      activeFilter === f
+                        ? "bg-amber-600 border-amber-600 text-white"
+                        : "bg-white text-stone-600 border-slate-200 hover:border-amber-400"
+                    }`}
                   >
-                    <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                      <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
-                      <h3 className="font-serif font-black text-xs text-amber-400 uppercase tracking-widest">Developer Sensor Simulator</h3>
-                    </div>
-
-                    {simulatorStatus && (
-                      <div className="text-[10px] font-mono text-emerald-400 bg-black/40 p-2 rounded-lg border border-slate-800">
-                        {simulatorStatus}
-                      </div>
-                    )}
-
-                    <div className="space-y-3 divide-y divide-slate-800/50">
-                      {zones.map((zone) => (
-                        <div key={zone.parkingId} className="flex items-center justify-between gap-3 pt-3 first:pt-0">
-                          <span className="text-[11px] font-serif font-black truncate max-w-[140px] xl:max-w-[160px]">{zone.name}</span>
-                          <div className="flex gap-2 shrink-0">
-                            <button
-                              onClick={() => handleSimulatePing(zone.parkingId, "INFLOW")}
-                              className="bg-red-900/40 border border-red-800/80 hover:bg-red-900/60 active:scale-95 text-red-200 text-[10px] font-bold px-2.5 min-h-[44px] rounded-lg cursor-pointer transition-all"
-                            >
-                              +IN
-                            </button>
-                            <button
-                              onClick={() => handleSimulatePing(zone.parkingId, "OUTFLOW")}
-                              className="bg-emerald-900/40 border border-emerald-800/80 hover:bg-emerald-900/60 active:scale-95 text-emerald-200 text-[10px] font-bold px-2.5 min-h-[44px] rounded-lg cursor-pointer transition-all"
-                            >
-                              −OUT
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Zone lot cards */}
-              <div className="space-y-4">
-                {filteredZones.map((zone) => (
-                  <ZoneCard
-                    key={zone.parkingId}
-                    zone={zone}
-                    onSimulatePing={handleSimulatePing}
-                    onCommunityVote={handleCommunityVote}
-                  />
+                    {f === "All" ? "🚗 All" : f === "Car Only" ? "🚗 Cars" : "🏍️ Bikes"}
+                  </button>
                 ))}
               </div>
+
+              <button
+                onClick={() => setIsSimulatorOpen(!isSimulatorOpen)}
+                className={`flex items-center gap-2 px-3 rounded-xl text-xs font-bold border cursor-pointer shadow-sm transition-all duration-200 min-h-[44px] ${
+                  isSimulatorOpen
+                    ? "bg-slate-900 border-slate-900 text-amber-400"
+                    : "bg-white text-stone-700 border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Sensor Emulator</span>
+                <span className="sm:hidden">Emulator</span>
+              </button>
+            </div>
+
+            {/* Simulator panel */}
+            <AnimatePresence>
+              {isSimulatorOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25, ease: [0.25, 1, 0.5, 1] }}
+                  className="bg-slate-900 text-white rounded-2xl p-4 border border-slate-800 shadow-md space-y-3 overflow-hidden"
+                >
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-2.5">
+                    <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                    <h3 className="font-serif font-black text-xs text-amber-400 uppercase tracking-widest">Sensor Simulator</h3>
+                  </div>
+                  {simulatorStatus && (
+                    <div className="text-[10px] font-mono text-emerald-400 bg-black/40 p-2 rounded-lg border border-slate-800">{simulatorStatus}</div>
+                  )}
+                  <div className="space-y-2.5 divide-y divide-slate-800/50">
+                    {zones.map((zone) => (
+                      <div key={zone.parkingId} className="flex items-center justify-between gap-2 pt-2.5 first:pt-0">
+                        <span className="text-[11px] font-serif font-black truncate max-w-[130px] lg:max-w-[150px]">{zone.name}</span>
+                        <div className="flex gap-1.5 shrink-0">
+                          <button onClick={() => handleSimulatePing(zone.parkingId, "INFLOW")}
+                            className="bg-red-900/40 border border-red-800/80 hover:bg-red-900/60 active:scale-95 text-red-200 text-[10px] font-bold px-2 min-h-[44px] rounded-lg cursor-pointer transition-all">
+                            +IN
+                          </button>
+                          <button onClick={() => handleSimulatePing(zone.parkingId, "OUTFLOW")}
+                            className="bg-emerald-900/40 border border-emerald-800/80 hover:bg-emerald-900/60 active:scale-95 text-emerald-200 text-[10px] font-bold px-2 min-h-[44px] rounded-lg cursor-pointer transition-all">
+                            −OUT
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Zone lot cards — scrollable on desktop */}
+            <div className="space-y-4 lg:max-h-[calc(100vh-200px)] lg:overflow-y-auto lg:pr-1">
+              {filteredZones.map((zone) => (
+                <ZoneCard
+                  key={zone.parkingId}
+                  zone={zone}
+                  onSimulatePing={handleSimulatePing}
+                  onCommunityVote={handleCommunityVote}
+                />
+              ))}
             </div>
 
           </div>
         </div>
-      </section>
-    </>
+      </div>
+    </section>
   );
 }
 
