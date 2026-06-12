@@ -11,32 +11,55 @@
 
 import { MongoClient, Db } from "mongodb";
 
-const MONGODB_URI = process.env.MONGODB_URI as string;
-const DB_NAME = process.env.MONGODB_DB_NAME ?? "shoolini_parking";
-
-if (!MONGODB_URI) {
-  throw new Error(
-    "[mongodb] MONGODB_URI environment variable is not set. " +
-      "Add it to .env.local: MONGODB_URI=mongodb+srv://..."
-  );
-}
-
 // ─── Global cache (survives HMR in development) ───────────────────────────────
 declare global {
   // eslint-disable-next-line no-var
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-let clientPromise: Promise<MongoClient>;
+let clientPromise: Promise<MongoClient> | null = null;
 
-if (process.env.NODE_ENV === "development") {
-  // Reuse across hot-reloads
-  if (!global._mongoClientPromise) {
+/**
+ * Returns a connected MongoClient.
+ * Await this in every Route Handler that needs the database.
+ */
+export async function getMongoClient(): Promise<MongoClient> {
+  if (clientPromise) {
+    return clientPromise;
+  }
+
+  const MONGODB_URI = process.env.MONGODB_URI as string;
+
+  if (!MONGODB_URI) {
+    throw new Error(
+      "[mongodb] MONGODB_URI environment variable is not set. " +
+        "Add it to .env.local: MONGODB_URI=mongodb+srv://..."
+    );
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    // Reuse across hot-reloads
+    if (!global._mongoClientPromise) {
+      const client = new MongoClient(MONGODB_URI);
+      console.log("🔌 [MongoDB] Initializing client connection...");
+      global._mongoClientPromise = client.connect()
+        .then((clientInstance) => {
+          console.log("🟢 [MongoDB] Connected successfully!");
+          return clientInstance;
+        })
+        .catch((err) => {
+          console.error("🔴 [MongoDB] Connection failed:", err.message);
+          throw err;
+        });
+    }
+    clientPromise = global._mongoClientPromise;
+  } else {
+    // In production, always create a fresh promise (module is loaded once)
     const client = new MongoClient(MONGODB_URI);
-    console.log("🔌 [MongoDB] Initializing client connection...");
-    global._mongoClientPromise = client.connect()
+    console.log("🔌 [MongoDB] Connecting in production...");
+    clientPromise = client.connect()
       .then((clientInstance) => {
-        console.log("🟢 [MongoDB] Connected successfully!");
+        console.log("🟢 [MongoDB] Connected successfully (production)!");
         return clientInstance;
       })
       .catch((err) => {
@@ -44,27 +67,7 @@ if (process.env.NODE_ENV === "development") {
         throw err;
       });
   }
-  clientPromise = global._mongoClientPromise;
-} else {
-  // In production, always create a fresh promise (module is loaded once)
-  const client = new MongoClient(MONGODB_URI);
-  console.log("🔌 [MongoDB] Connecting in production...");
-  clientPromise = client.connect()
-    .then((clientInstance) => {
-      console.log("🟢 [MongoDB] Connected successfully (production)!");
-      return clientInstance;
-    })
-    .catch((err) => {
-      console.error("🔴 [MongoDB] Connection failed:", err.message);
-      throw err;
-    });
-}
 
-/**
- * Returns a connected MongoClient.
- * Await this in every Route Handler that needs the database.
- */
-export async function getMongoClient(): Promise<MongoClient> {
   return clientPromise;
 }
 
@@ -73,8 +76,10 @@ export async function getMongoClient(): Promise<MongoClient> {
  * Convenience wrapper around getMongoClient().
  */
 export async function getDb(): Promise<Db> {
+  const DB_NAME = process.env.MONGODB_DB_NAME ?? "shoolini_parking";
   const client = await getMongoClient();
   return client.db(DB_NAME);
 }
 
-export default clientPromise;
+export default getMongoClient;
+
