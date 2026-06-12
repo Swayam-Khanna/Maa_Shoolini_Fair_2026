@@ -8,7 +8,7 @@
  * on this page originated from a physical gate counter.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Car,
@@ -202,12 +202,13 @@ function OccupancyBar({ lot }: { lot: LiveLot }) {
         </span>
       </div>
 
+      {/* GPU-composited bar — scaleX runs on compositor thread, no layout reflow on every poll tick */}
       <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
         <motion.div
-          className={`h-full rounded-full ${barColor}`}
-          initial={{ width: "0%" }}
-          animate={{ width: `${Math.min(pct, 100)}%` }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
+          className={`h-full rounded-full ${barColor} origin-left transform-gpu will-change-transform`}
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: Math.min(pct, 100) / 100 }}
+          transition={{ duration: 0.5, ease: [0.25, 1, 0.5, 1] }}
         />
       </div>
 
@@ -232,8 +233,8 @@ function OccupancyBar({ lot }: { lot: LiveLot }) {
   );
 }
 
-/** Individual parking lot card */
-function ParkingCard({ lot, index }: { lot: LiveLot; index: number }) {
+/** Individual parking lot card — memoised so only the changed card re-renders on poll ticks */
+const ParkingCard = memo(function ParkingCard({ lot, index }: { lot: LiveLot; index: number }) {
   const tier = statusTier(lot);
 
   const cardBorderAccent =
@@ -249,8 +250,8 @@ function ParkingCard({ lot, index }: { lot: LiveLot; index: number }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97 }}
-      transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
-      className={`bg-white rounded-2xl border ${cardBorderAccent} shadow-sm p-6 flex flex-col gap-5 hover:shadow-md transition-shadow duration-300`}
+      transition={{ duration: 0.3, delay: index * 0.05, ease: [0.25, 1, 0.5, 1] }}
+      className={`bg-white rounded-2xl border ${cardBorderAccent} shadow-sm p-6 flex flex-col gap-5 transform-gpu will-change-transform hover:shadow-md transition-[box-shadow,opacity,transform] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]`}
       aria-label={`${lot.name}: ${lot.availableSpots} spaces remaining`}
     >
       {/* ── Card header ── */}
@@ -308,7 +309,7 @@ function ParkingCard({ lot, index }: { lot: LiveLot; index: number }) {
       </div>
     </motion.article>
   );
-}
+});
 
 /** Summary stat row across all visible lots */
 function SummaryRow({ lots }: { lots: LiveLot[] }) {
@@ -427,16 +428,40 @@ export default function TransportationPage() {
   }, []);
 
   useEffect(() => {
-    fetchLive(); // immediate first load
-    const interval = setInterval(fetchLive, POLL_INTERVAL_MS);
-    return () => {
-      clearInterval(interval);
+    // Structured polling with visibility-aware pause/resume
+    // Prevents background fetch storms when users switch tabs on mobile
+    let intervalId: ReturnType<typeof setInterval>;
+
+    const startPolling = () => {
+      fetchLive();
+      intervalId = setInterval(fetchLive, POLL_INTERVAL_MS);
+    };
+
+    const stopPolling = () => {
+      clearInterval(intervalId);
       abortRef.current?.abort();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopPolling();
+      else startPolling();
+    };
+
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchLive]);
 
   // ── Filtering ─────────────────────────────────────────────────────────────
-  const visibleLots = lots.filter((l) => filterMatches(l, activeFilter));
+  // Memoised — filter only re-runs when raw lots data or active filter changes
+  const visibleLots = useMemo(
+    () => lots.filter((l) => filterMatches(l, activeFilter)),
+    [lots, activeFilter]
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

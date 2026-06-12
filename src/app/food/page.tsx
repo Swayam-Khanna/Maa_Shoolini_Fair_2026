@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useLanguage } from "@/context/LanguageContext";
 import { Utensils, Check, MapPin, Sparkles, Trash2, ArrowRight, Store } from "lucide-react";
 
@@ -396,14 +396,16 @@ export default function FoodPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const translateMeta = (text: string) => {
+  // Stable translation helper — only re-creates when language switches
+  const translateMeta = useCallback((text: string): string => {
     const dict = UI_TRANSLATIONS[language] as Record<string, string>;
     return dict[text] || text;
-  };
+  }, [language]);
 
   const ui = UI_TRANSLATIONS[language];
 
-  // Client-side fetch inside useEffect hook to target the dynamic API route /api/food/live
+  // Runs once on mount — language switches only affect display text, not data fetching
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     async function loadMenu() {
       try {
@@ -421,38 +423,45 @@ export default function FoodPage() {
         }
       } catch (err) {
         console.error("Failed to fetch food items from live API, using fallback:", err);
-        setError(ui.errorText);
-        // Fallback to static defaults is already loaded in the initial state
+        // Read translation at call-time to avoid stale closure
+        setError(UI_TRANSLATIONS[language]?.errorText ?? "Failed to load menu.");
       } finally {
         setIsLoading(false);
       }
     }
     loadMenu();
-  }, [ui.errorText]);
+  }, []); // intentional: fetch runs once; language is display-only
 
-  // Calculations for total budget and selected items list
-  const selectedItems = foodMenu.filter((item) => selectedIds.includes(item.id));
-  const totalCost = selectedItems.reduce((sum, item) => sum + item.price, 0);
+  // ── Memoised derivations ─────────────────────────────────────────────────
+  // Re-compute only when foodMenu array reference or selectedIds array changes
+  const selectedItems = useMemo(
+    () => foodMenu.filter((item) => selectedIds.includes(item.id)),
+    [foodMenu, selectedIds]
+  );
 
-  // Toggle selection state when clicking on the card or checkbox
-  const handleToggle = (id: string) => {
+  const totalCost = useMemo(
+    () => selectedItems.reduce((sum, item) => sum + item.price, 0),
+    [selectedItems]
+  );
+
+  // Stable toggle — functional updater form means zero external dependencies
+  const handleToggle = useCallback((id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
-  };
+  }, []);
 
-  // Generate automated itinerary path of unique shops visited
-  const uniqueShops = Array.from(new Set(selectedItems.map((item) => translateMeta(item.shop))));
+  // Unique shop list for the route itinerary panel
+  const uniqueShops = useMemo(
+    () => Array.from(new Set(selectedItems.map((item) => translateMeta(item.shop)))),
+    [selectedItems, translateMeta]
+  );
 
-  // Smart budget recommendation feedback messages
-  let recommendationText = ui.recommendation0;
-  if (totalCost > 0) {
-    if (totalCost <= 100) {
-      recommendationText = ui.recommendationLight;
-    } else {
-      recommendationText = ui.recommendationHeavy;
-    }
-  }
+  // Smart recommendation — depends only on totalCost value and current UI strings
+  const recommendationText = useMemo(() => {
+    if (totalCost === 0) return ui.recommendation0;
+    return totalCost <= 100 ? ui.recommendationLight : ui.recommendationHeavy;
+  }, [totalCost, ui]);
 
   return (
     <div className="w-full bg-[#fcfbf9] text-stone-900 min-h-screen py-12 md:py-20 relative">
@@ -506,7 +515,11 @@ export default function FoodPage() {
                   <div
                     key={item.id}
                     onClick={() => handleToggle(item.id)}
-                    className={`bg-white rounded-2xl border p-5 shadow-sm hover:shadow-md cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none transition-all duration-200 ease-apple-ease gpu-accelerated will-animate-transform ${
+                    style={{ contentVisibility: "auto", containIntrinsicSize: "1px 220px" }}
+                    className={`bg-white rounded-2xl border p-5 shadow-sm cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none
+                      transform-gpu will-change-transform
+                      transition-[box-shadow,border-color,transform] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)]
+                      hover:shadow-md ${
                       isSelected
                         ? "border-amber-500 ring-2 ring-amber-500/10 bg-amber-50/5"
                         : "border-slate-100 hover:border-amber-300"
@@ -515,7 +528,9 @@ export default function FoodPage() {
                     {/* Active Select Checkbox */}
                     <div className="absolute top-4 right-4 flex items-center gap-2">
                       <div
-                        className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all duration-200 ${
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center
+                          transform-gpu will-change-transform
+                          transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] ${
                           isSelected
                             ? "bg-amber-500 border-amber-500 text-white scale-105"
                             : "border-slate-300 bg-white group-hover:border-amber-500"
@@ -669,7 +684,7 @@ export default function FoodPage() {
                 {selectedIds.length > 0 && (
                   <button
                     onClick={() => setSelectedIds([])}
-                    className="w-full mt-4 py-2.5 rounded-xl border border-red-200 text-red-700 text-xs font-bold hover:bg-red-50 active:scale-98 transition-all duration-200 cursor-pointer text-center block bg-white"
+                    className="w-full mt-4 py-2.5 rounded-xl border border-red-200 text-red-700 text-xs font-bold hover:bg-red-50 active:scale-[0.98] transform-gpu will-change-transform transition-[transform,background-color] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer text-center block bg-white"
                   >
                     {ui.clearAll}
                   </button>

@@ -4,7 +4,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Car,
@@ -184,6 +184,155 @@ function VehicleIcon({ type }: { type: VehicleType }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ZoneCard — memoised so only the card whose zone data changed re-renders on
+// each 3-second poll tick. Stable onSimulatePing / onCommunityVote props
+// (from useCallback) ensure React.memo's shallow equality check actually works.
+// ─────────────────────────────────────────────────────────────────────────────
+interface ZoneCardProps {
+  zone: LiveParkingZone;
+  onSimulatePing: (parkingId: string, event: "INFLOW" | "OUTFLOW") => void;
+  onCommunityVote: (
+    parkingId: string,
+    event: "COMMUNITY_EMPTY" | "COMMUNITY_FULL" | "COMMUNITY_ALMOST_FULL"
+  ) => void;
+}
+
+const ZoneCard = memo(function ZoneCard({
+  zone,
+  onSimulatePing,
+  onCommunityVote,
+}: ZoneCardProps) {
+  const available = zone.availableSpots;
+  const capacity = zone.totalSpots;
+  const occupied = capacity - available;
+  const pct = Math.round((occupied / capacity) * 100);
+
+  let statusBadge = "Spaces Available";
+  let badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+  let progressColor = "bg-emerald-500";
+
+  if (available === 0) {
+    statusBadge = "HOUSEFULL";
+    badgeClass = "bg-rose-600 text-white border-rose-600";
+    progressColor = "bg-rose-600";
+  } else if (available > 0 && available <= 5) {
+    statusBadge = `CRITICAL: Only ${available} Left!`;
+    badgeClass = "bg-amber-50 text-amber-700 border-amber-200/50";
+    progressColor = "bg-orange-500";
+  }
+
+  return (
+    <div
+      className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5 space-y-4
+                 transform-gpu will-change-transform
+                 hover:shadow-md transition-[box-shadow] duration-300
+                 ease-[cubic-bezier(0.25,1,0.5,1)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-serif font-black text-red-950">{zone.name}</h3>
+          <span className="text-[10px] text-stone-500 block truncate mt-0.5">{zone.address}</span>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {zone.isCommunityVerified ? (
+              <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
+                👥 Community Verified
+              </span>
+            ) : zone.isPredictive ? (
+              <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
+                🕒 Predictive Traffic Estimate
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200/50 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
+                📡 Automated Ground Counts Active
+              </span>
+            )}
+          </div>
+        </div>
+        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider border uppercase ${badgeClass}`}>
+          {statusBadge}
+        </span>
+      </div>
+
+      <p className="text-stone-600 text-[11px] leading-relaxed">{zone.description}</p>
+
+      {/* GPU-composited progress bar — scaleX avoids layout recalculation on every poll tick */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[10px] font-bold text-stone-500">
+          <span>Lot Capacity Occupancy</span>
+          <span>{available === 0 ? 100 : pct}%</span>
+        </div>
+        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full ${progressColor} transform-gpu will-change-transform transition-transform duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] origin-left`}
+            style={{ transform: `scaleX(${(available === 0 ? 100 : pct) / 100})` }}
+          />
+        </div>
+        <div className="flex items-center justify-between text-[9px] text-stone-400 font-semibold">
+          <span>{available} free spots</span>
+          <span>{capacity} total spots</span>
+        </div>
+      </div>
+
+      {/* Meta Row & Entry Details */}
+      <div className="grid grid-cols-2 gap-2 text-[10px] font-bold pt-1">
+        <div className="flex items-center gap-1.5 p-2 bg-stone-50 rounded-xl border border-slate-100">
+          <VehicleIcon type={zone.type} />
+          <span className="truncate">{zone.type}</span>
+        </div>
+        <div className="flex items-center gap-1.5 p-2 bg-stone-50 rounded-xl border border-slate-100">
+          <Navigation className="w-3.5 h-3.5 text-stone-400" />
+          <span className="truncate">{zone.distanceLabel}</span>
+        </div>
+      </div>
+
+      {/* Access point route entry */}
+      <div className="flex gap-2 p-2.5 bg-amber-50/20 border border-amber-200/20 rounded-xl text-[10px] font-semibold text-stone-700 leading-snug">
+        <ArrowRight className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+        <div>
+          <span className="text-[9px] text-stone-400 font-bold uppercase tracking-wider block">Official Gate Access Link</span>
+          <span className="text-amber-900">{zone.routeEntry}</span>
+        </div>
+      </div>
+
+      {/* Community Voting Panel */}
+      <div className="bg-stone-50 border border-stone-100 rounded-xl p-3 space-y-2">
+        <span className="text-[10px] font-sans font-bold text-stone-600 block">
+          Are you physically here? Help other drivers!
+        </span>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            onClick={() => onCommunityVote(zone.parkingId, "COMMUNITY_EMPTY")}
+            className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-bold py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer text-center"
+          >
+            🟢 Looking Empty
+          </button>
+          <button
+            onClick={() => onCommunityVote(zone.parkingId, "COMMUNITY_ALMOST_FULL")}
+            className="flex-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-[10px] font-bold py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer text-center"
+          >
+            🟡 Almost Full
+          </button>
+          <button
+            onClick={() => onCommunityVote(zone.parkingId, "COMMUNITY_FULL")}
+            className="flex-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 text-[10px] font-bold py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer text-center"
+          >
+            🔴 Looking Full!
+          </button>
+        </div>
+      </div>
+
+      {/* Last Sensor Ping Timestamp */}
+      {zone.lastPingedAt && (
+        <div className="text-[9px] font-mono text-stone-400 text-right">
+          Last ping:{" "}
+          {new Date(zone.lastPingedAt).toLocaleTimeString("en-IN", { hour12: false })}
+        </div>
+      )}
+    </div>
+  );
+});
+
 export default function ParkingFinder() {
   const [zones, setZones] = useState<LiveParkingZone[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
@@ -196,10 +345,20 @@ export default function ParkingFinder() {
 
   const mapRef = useRef<any>(null);
   const markersRef = useRef<{ [key: string]: any }>({});
-  const pollerRef = useRef<NodeJS.Timeout | null>(null);
   const polylinesRef = useRef<any[]>([]);
+  // AbortController ref — cancels in-flight requests before each new poll tick
+  const abortRef = useRef<AbortController | null>(null);
 
-  const statuses = calculateRouteStatuses(zones, lastUpdated ? lastUpdated.getHours() : new Date().getHours());
+  // Memoised — route status only recomputes when zone data or timestamp changes,
+  // not on every isSimulatorOpen / simulatorStatus state update
+  const statuses = useMemo(
+    () =>
+      calculateRouteStatuses(
+        zones,
+        lastUpdated ? lastUpdated.getHours() : new Date().getHours()
+      ),
+    [zones, lastUpdated]
+  );
 
   // Initialize and load Leaflet CSS & JS dynamically (Client-side only)
   useEffect(() => {
@@ -236,10 +395,18 @@ export default function ParkingFinder() {
     };
   }, []);
 
-  // Fetch live database values from Next.js API route /api/parking/live
-  const fetchLiveParking = async () => {
+  // Stable fetch function — AbortController cancels previous in-flight request
+  // before each new tick so stale responses never overwrite fresh data
+  const fetchLiveParking = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const res = await fetch("/api/parking/live");
+      const res = await fetch("/api/parking/live", {
+        signal: controller.signal,
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("Failed to fetch live parking feeds");
       const data = await res.json();
       if (data.ok && Array.isArray(data.lots)) {
@@ -249,14 +416,14 @@ export default function ParkingFinder() {
         throw new Error(data.error || "Malformed live data response");
       }
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       console.error("Error fetching live parking data:", err);
       setError("Unable to sync live parking feeds. Showing cached values.");
-      
-      // Fallback
-      if (zones.length === 0) {
-        const now = new Date();
-        const hour = now.getHours();
-        const fallback = PARKING_LOTS.map((lot) => ({
+      // Functional updater: only populate fallback when zones is still empty
+      setZones((prev) => {
+        if (prev.length > 0) return prev;
+        const hour = new Date().getHours();
+        return PARKING_LOTS.map((lot) => ({
           ...lot,
           parkingId: lot.id,
           availableSpots: getPredictiveAvailableSpots(lot.id, lot.totalSpots, hour),
@@ -264,23 +431,41 @@ export default function ParkingFinder() {
           isPredictive: true,
           isCommunityVerified: false,
         }));
-        setZones(fallback);
-      }
+      });
     } finally {
       setIsLoading(false);
       setLastUpdated(new Date());
     }
-  };
+  }, []);
 
-  // Start the 3-second database polling pipeline
+  // Visibility-aware polling — pauses when tab is hidden to prevent background
+  // fetch storms that cause UI stuttering when the user switches back on mobile
   useEffect(() => {
-    fetchLiveParking();
-    pollerRef.current = setInterval(fetchLiveParking, 3000);
+    let intervalId: ReturnType<typeof setInterval>;
+
+    const startPolling = () => {
+      fetchLiveParking();
+      intervalId = setInterval(fetchLiveParking, 3000);
+    };
+
+    const stopPolling = () => {
+      clearInterval(intervalId);
+      abortRef.current?.abort();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopPolling();
+      else startPolling();
+    };
+
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      if (pollerRef.current) clearInterval(pollerRef.current);
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [fetchLiveParking]);
 
   // Initialize and redraw Leaflet Map & markers when Leaflet is ready or data updates
   useEffect(() => {
@@ -291,7 +476,10 @@ export default function ParkingFinder() {
     if (!mapRef.current) {
       mapRef.current = L.map("solan-map", {
         zoomControl: false,
-        attributionControl: false
+        attributionControl: false,
+        // preferCanvas: GPU canvas rendering for all polyline routes and markers
+        // avoids creating hundreds of individual SVG DOM nodes on mobile browsers
+        preferCanvas: true,
       }).setView([30.9082, 77.1031], 14);
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
@@ -489,8 +677,8 @@ export default function ParkingFinder() {
     });
   }, [isLeafletLoaded, zones]);
 
-  // Handle emulator ping post calls to /api/parking/sensor-ping
-  const handleSimulatePing = async (parkingId: string, event: "INFLOW" | "OUTFLOW") => {
+  // Stable callback — passed down to ZoneCard memo; must not change on re-renders
+  const handleSimulatePing = useCallback(async (parkingId: string, event: "INFLOW" | "OUTFLOW") => {
     setSimulatorStatus(`Pinging gate sensor for ${parkingId}...`);
     try {
       const res = await fetch("/api/parking/sensor-ping", {
@@ -501,15 +689,10 @@ export default function ParkingFinder() {
       const data = await res.json();
       if (data.ok) {
         setSimulatorStatus(`Sensor Ping Success! ${event} registered. Available: ${data.availableSpots}`);
-        // Instantly update the UI local state for awesome responsiveness
         setZones((prev) =>
           prev.map((zone) =>
             zone.parkingId === parkingId
-              ? {
-                  ...zone,
-                  availableSpots: data.availableSpots,
-                  lastPingedAt: data.lastPingedAt,
-                }
+              ? { ...zone, availableSpots: data.availableSpots, lastPingedAt: data.lastPingedAt }
               : zone
           )
         );
@@ -520,7 +703,7 @@ export default function ParkingFinder() {
       console.error(err);
       setSimulatorStatus("Failed to communicate with sensor API.");
     }
-  };
+  }, []);
 
   // Handle community feedback vote posting to /api/parking/sensor-ping
   const handleCommunityVote = React.useCallback(async (parkingId: string, event: "COMMUNITY_EMPTY" | "COMMUNITY_FULL" | "COMMUNITY_ALMOST_FULL") => {
@@ -563,8 +746,8 @@ export default function ParkingFinder() {
     };
   }, [handleCommunityVote]);
 
-  // Filter list of displayed zones in the right column card list
-  const filteredZones = zones.filter((zone) => {
+  // Memoised — prevents re-filtering on isSimulatorOpen toggles and simulatorStatus updates
+  const filteredZones = useMemo(() => zones.filter((zone) => {
     if (activeFilter === "All") return true;
     if (activeFilter === "Car Only") {
       return zone.type === "Car Only" || zone.type === "All Vehicles" || zone.type === "Car & Bike";
@@ -573,7 +756,7 @@ export default function ParkingFinder() {
       return zone.type === "Bike Only" || zone.type === "All Vehicles" || zone.type === "Car & Bike";
     }
     return true;
-  });
+  }), [zones, activeFilter]);
 
   return (
     <section className="min-h-screen bg-[#fcfbf9] py-8 px-4 sm:px-6 relative overflow-hidden">
@@ -899,145 +1082,17 @@ export default function ParkingFinder() {
               )}
             </AnimatePresence>
 
-            {/* List of Active Lot Cards */}
+            {/* Zone cards — each isolated in a memo component so only the card
+                whose data changed re-renders; stable callbacks keep memo effective */}
             <div className="space-y-4 max-h-[550px] overflow-y-auto pr-1">
-              {filteredZones.map((zone) => {
-                const available = zone.availableSpots;
-                const capacity = zone.totalSpots;
-                const occupied = capacity - available;
-                const pct = Math.round((occupied / capacity) * 100);
-
-                let statusBadge = "Spaces Available";
-                let badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
-                let progressColor = "bg-emerald-500";
-
-                if (available === 0) {
-                  statusBadge = "HOUSEFULL";
-                  badgeClass = "bg-rose-600 text-white border-rose-600";
-                  progressColor = "bg-rose-600";
-                } else if (available > 0 && available <= 5) {
-                  statusBadge = `CRITICAL: Only ${available} Left!`;
-                  badgeClass = "bg-amber-50 text-amber-700 border-amber-200/50";
-                  progressColor = "bg-orange-500";
-                }
-
-                return (
-                  <div
-                    key={zone.parkingId}
-                    className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5 space-y-4 hover:shadow-md transition-shadow duration-300"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-sm font-serif font-black text-red-950">
-                          {zone.name}
-                        </h3>
-                        <span className="text-[10px] text-stone-500 block truncate mt-0.5">
-                          {zone.address}
-                        </span>
-
-                        {/* Data Source Badge */}
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {zone.isCommunityVerified ? (
-                            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
-                              👥 Community Verified
-                            </span>
-                          ) : zone.isPredictive ? (
-                            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
-                              🕒 Predictive Traffic Estimate
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200/50 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
-                              📡 Automated Ground Counts Active
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Status badge */}
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider border uppercase ${badgeClass}`}>
-                        {statusBadge}
-                      </span>
-                    </div>
-
-                    <p className="text-stone-600 text-[11px] leading-relaxed">
-                      {zone.description}
-                    </p>
-
-                    {/* Progress Bar */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px] font-bold text-stone-500">
-                        <span>Lot Capacity Occupancy</span>
-                        <span>{available === 0 ? 100 : pct}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                           className={`h-full rounded-full ${progressColor} transition-all duration-300`}
-                          style={{ width: `${available === 0 ? 100 : pct}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[9px] text-stone-400 font-semibold">
-                        <span>{available} free spots</span>
-                        <span>{capacity} total spots</span>
-                      </div>
-                    </div>
-
-                    {/* Meta Row & Entry Details */}
-                    <div className="grid grid-cols-2 gap-2 text-[10px] font-bold pt-1">
-                      <div className="flex items-center gap-1.5 p-2 bg-stone-50 rounded-xl border border-slate-100">
-                        <VehicleIcon type={zone.type} />
-                        <span className="truncate">{zone.type}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 p-2 bg-stone-50 rounded-xl border border-slate-100">
-                        <Navigation className="w-3.5 h-3.5 text-stone-400" />
-                        <span className="truncate">{zone.distanceLabel}</span>
-                      </div>
-                    </div>
-
-                    {/* Access point route warning */}
-                    <div className="flex gap-2 p-2.5 bg-amber-50/20 border border-amber-200/20 rounded-xl text-[10px] font-semibold text-stone-700 leading-snug">
-                      <ArrowRight className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="text-[9px] text-stone-400 font-bold uppercase tracking-wider block">Official Gate Access Link</span>
-                        <span className="text-amber-900">{zone.routeEntry}</span>
-                      </div>
-                    </div>
-
-                    {/* Community Voting Panel */}
-                    <div className="bg-stone-50 border border-stone-100 rounded-xl p-3 space-y-2">
-                      <span className="text-[10px] font-sans font-bold text-stone-600 block">
-                        Are you physically here? Help other drivers!
-                      </span>
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <button
-                          onClick={() => handleCommunityVote(zone.parkingId, "COMMUNITY_EMPTY")}
-                          className="flex-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-bold py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer text-center"
-                        >
-                          🟢 Looking Empty
-                        </button>
-                        <button
-                          onClick={() => handleCommunityVote(zone.parkingId, "COMMUNITY_ALMOST_FULL")}
-                          className="flex-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-[10px] font-bold py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer text-center"
-                        >
-                          🟡 Almost Full
-                        </button>
-                        <button
-                          onClick={() => handleCommunityVote(zone.parkingId, "COMMUNITY_FULL")}
-                          className="flex-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 text-[10px] font-bold py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer text-center"
-                        >
-                          🔴 Looking Full!
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Last Sensor Ping Timestamp */}
-                    {zone.lastPingedAt && (
-                      <div className="text-[9px] font-mono text-stone-400 text-right">
-                        Last ping: {new Date(zone.lastPingedAt).toLocaleTimeString("en-IN", { hour12: false })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {filteredZones.map((zone) => (
+                <ZoneCard
+                  key={zone.parkingId}
+                  zone={zone}
+                  onSimulatePing={handleSimulatePing}
+                  onCommunityVote={handleCommunityVote}
+                />
+              ))}
             </div>
 
           </div>
