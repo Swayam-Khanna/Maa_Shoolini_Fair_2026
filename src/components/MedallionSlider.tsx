@@ -1,12 +1,14 @@
 "use client";
 
 import { useRef } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Translate, TranslationKey } from "@/context/LanguageContext";
 
 interface Medallion {
   token: TranslationKey;
   svgIcon: React.ReactNode;
+  href: string;
 }
 
 export default function MedallionSlider() {
@@ -15,6 +17,7 @@ export default function MedallionSlider() {
   const medallions: Medallion[] = [
     {
       token: "medallion_cultural",
+      href: "/attractions",
       svgIcon: (
         // Traditional Dancers Silhouette (Dark Engraved)
         <svg className="w-9 h-9 sm:w-10 sm:h-10 text-maroon-dark/85 group-hover:text-maroon-dark transition-colors duration-300 flex-shrink-0 drop-shadow-[0_0.75px_0_rgba(255,255,255,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -31,6 +34,7 @@ export default function MedallionSlider() {
     },
     {
       token: "medallion_food",
+      href: "/food",
       svgIcon: (
         // Traditional Food Bazaar Stall Silhouette (Dark Engraved)
         <svg className="w-9 h-9 sm:w-10 sm:h-10 text-maroon-dark/85 group-hover:text-maroon-dark transition-colors duration-300 flex-shrink-0 drop-shadow-[0_0.75px_0_rgba(255,255,255,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -46,6 +50,7 @@ export default function MedallionSlider() {
     },
     {
       token: "medallion_flower",
+      href: "/attractions",
       svgIcon: (
         // Lotus Flowers Silhouette (Dark Engraved)
         <svg className="w-9 h-9 sm:w-10 sm:h-10 text-maroon-dark/85 group-hover:text-maroon-dark transition-colors duration-300 flex-shrink-0 drop-shadow-[0_0.75px_0_rgba(255,255,255,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -57,6 +62,7 @@ export default function MedallionSlider() {
     },
     {
       token: "medallion_shobha",
+      href: "/mela-details",
       svgIcon: (
         // Procession Diya & Flags Silhouette (Dark Engraved)
         <svg className="w-9 h-9 sm:w-10 sm:h-10 text-maroon-dark/85 group-hover:text-maroon-dark transition-colors duration-300 flex-shrink-0 drop-shadow-[0_0.75px_0_rgba(255,255,255,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -99,9 +105,10 @@ export default function MedallionSlider() {
         style={{ scrollSnapType: "x mandatory" }}
       >
         {medallions.map((med, idx) => (
-          <div
+          <Link
             key={idx}
-            className="snap-start shrink-0 group relative w-[155px] sm:w-[170px] h-[75px] sm:h-[82px] rounded-2xl flex items-center gap-2 p-3 overflow-hidden border border-amber-950/25 shadow-[0_5px_15px_rgba(0,0,0,0.55),_inset_0_1.5px_1.5px_rgba(255,255,255,0.4)] transition-all duration-300 ease-apple-ease gpu-accelerated will-animate-transform hover:scale-[1.03] hover:shadow-[0_8px_20px_rgba(0,0,0,0.7)]"
+            href={med.href}
+            className="snap-start shrink-0 group relative w-[155px] sm:w-[170px] h-[75px] sm:h-[82px] rounded-2xl flex items-center gap-2 p-3 overflow-hidden border border-amber-950/25 shadow-[0_5px_15px_rgba(0,0,0,0.55),_inset_0_1.5px_1.5px_rgba(255,255,255,0.4)] transition-all duration-300 ease-apple-ease gpu-accelerated will-animate-transform hover:scale-[1.03] hover:shadow-[0_8px_20px_rgba(0,0,0,0.7)] cursor-pointer"
             style={{
               // Light Metallic Brass/Bronze Gradient to match the reference image
               background: "linear-gradient(135deg, #e8c99b 0%, #cba76d 40%, #ab8243 75%, #835d28 100%)",
@@ -135,7 +142,7 @@ export default function MedallionSlider() {
 
             {/* Inner bevel border highlight */}
             <div className="absolute inset-1 rounded-[14px] border border-white/20 pointer-events-none" />
-          </div>
+          </Link>
         ))}
       </div>
 

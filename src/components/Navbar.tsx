@@ -20,6 +20,7 @@ export default function Navbar() {
     { token: "nav_schedule", href: "/schedule" },
     { token: "nav_attractions", href: "/attractions" },
     { token: "nav_darshan", href: "/darshan" },
+    { token: "nav_food_fest", href: "/food" },
     { token: "nav_logistics", href: "/visitor-info" },
   ];
 

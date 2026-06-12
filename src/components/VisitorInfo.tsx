@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bus, Ban, MapPin, PhoneCall, HelpCircle, ShieldAlert, Train } from "lucide-react";
+import { Bus, Ban, MapPin, PhoneCall, ShieldAlert, Train, ParkingSquare } from "lucide-react";
+import Link from "next/link";
 
 export default function VisitorInfo() {
   const transitDetails = [
@@ -51,6 +52,43 @@ export default function VisitorInfo() {
             Make your pilgrimage and holiday stress-free. Review transportation services, parking hubs, and local regulations enforced during the 3-day mela.
           </p>
         </div>
+
+        {/* Live Parking CTA Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mb-10"
+        >
+          <Link
+            href="/parking"
+            className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 bg-gradient-to-r from-maroon-dark to-maroon text-white rounded-2xl border border-maroon/40 shadow-md hover:shadow-lg hover:brightness-110 transition-all duration-300 cursor-pointer group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/15 rounded-xl border border-white/20 shrink-0">
+                <ParkingSquare className="w-6 h-6 text-gold" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h3 className="font-serif font-bold text-base text-gold tracking-wide">Live Parking Finder</h3>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/80 border border-red-300/30 text-[10px] font-bold uppercase tracking-widest">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+                    </span>
+                    Live
+                  </span>
+                </div>
+                <p className="text-white/70 text-xs font-sans leading-relaxed">
+                  Check real-time parking availability at all 4 major zones around Solan — before you drive.
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-sans font-bold text-gold/80 group-hover:text-gold group-hover:translate-x-1 transition-all duration-200 whitespace-nowrap flex items-center gap-1">
+              View Live Map →
+            </span>
+          </Link>
+        </motion.div>
 
         {/* Info Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">

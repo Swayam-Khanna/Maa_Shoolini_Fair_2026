@@ -14,6 +14,8 @@ export const translations = {
     nav_devotional_wall: "DEVOTIONAL WALL",
     nav_darshan: "DARSHAN",
     nav_aarti: "AARTI",
+    nav_food_fest: "FOOD FEST",
+    nav_parking: "PARKING & TRAFFIC",
     // Hero translations
     hero_tag: "Historic 3-Day Festival",
     hero_title_1: "Maa",
@@ -46,6 +48,8 @@ export const translations = {
     nav_devotional_wall: "भक्ति दीवार",
     nav_darshan: "दिव्य दर्शन",
     nav_aarti: "आरती",
+    nav_food_fest: "भोजन उत्सव",
+    nav_parking: "पार्किंग और ट्रैफ़िक",
     // Hero translations
     hero_tag: "ऐतिहासिक 3-दिवसीय उत्सव",
     hero_title_1: "माँ",
