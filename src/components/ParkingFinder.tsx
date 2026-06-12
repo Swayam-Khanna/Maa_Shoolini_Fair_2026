@@ -342,6 +342,8 @@ export default function ParkingFinder() {
   const [error, setError] = useState<string | null>(null);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState<boolean>(false);
   const [simulatorStatus, setSimulatorStatus] = useState<string | null>(null);
+  // Bottom-sheet drawer state for mobile — collapsed = advisory only, expanded = full cards
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
 
   const mapRef = useRef<any>(null);
   const markersRef = useRef<{ [key: string]: any }>({});
@@ -472,13 +474,28 @@ export default function ParkingFinder() {
     const L = (window as any).L;
     if (!isLeafletLoaded || !L || zones.length === 0) return;
 
-    // 1. Initialize Map container if not already initialized
+    // 1. Initialize Map container — pick the visible container based on viewport.
+    //    Mobile (<lg) uses solan-map-mobile; desktop uses solan-map-desktop.
+    //    We destroy and re-create if the active container changes (e.g. on resize).
+    const isMobile = window.matchMedia("(max-width: 1023px)").matches;
+    const containerId = isMobile ? "solan-map-mobile" : "solan-map-desktop";
+    const containerEl = document.getElementById(containerId);
+
+    if (!containerEl) return; // container not yet in DOM (wrong breakpoint branch)
+
+    // If map already exists but is attached to a different container, destroy it
+    if (mapRef.current && mapRef.current.getContainer().id !== containerId) {
+      mapRef.current.remove();
+      mapRef.current = null;
+      markersRef.current = {};
+      polylinesRef.current = [];
+    }
+
     if (!mapRef.current) {
-      mapRef.current = L.map("solan-map", {
+      mapRef.current = L.map(containerId, {
         zoomControl: false,
         attributionControl: false,
-        // preferCanvas: GPU canvas rendering for all polyline routes and markers
-        // avoids creating hundreds of individual SVG DOM nodes on mobile browsers
+        // GPU canvas rendering — avoids hundreds of SVG DOM nodes on mobile
         preferCanvas: true,
       }).setView([30.9082, 77.1031], 14);
 
@@ -486,6 +503,7 @@ export default function ParkingFinder() {
         maxZoom: 20
       }).addTo(mapRef.current);
 
+      // Zoom controls top-right — avoids overlap with mobile notch and bottom drawer
       L.control.zoom({ position: "topright" }).addTo(mapRef.current);
     }
 
@@ -759,347 +777,456 @@ export default function ParkingFinder() {
   }), [zones, activeFilter]);
 
   return (
-    <section className="min-h-screen bg-[#fcfbf9] py-8 px-4 sm:px-6 relative overflow-hidden">
-      {/* Decorative background vectors */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+    <>
+      {/* ════════════════════════════════════════════════════════════════
+          MOBILE LAYOUT  (hidden on lg+)
+          Full-screen map + sliding bottom-sheet drawer
+      ════════════════════════════════════════════════════════════════ */}
+      <div className="block lg:hidden relative w-full" style={{ height: "calc(100vh - 64px)" }}>
 
-      <div className="max-w-7xl mx-auto space-y-8 relative z-10">
-        
-        {/* Back navigation */}
-        <Link
-          href="/visitor-info"
-          className="inline-flex items-center gap-2 text-xs font-sans font-bold text-stone-500 hover:text-red-950 transition-colors duration-200"
+        {/* Decorative blobs — pointer-events off so they never steal touches */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none z-0" />
+
+        {/* ── Full-screen Leaflet map ── */}
+        <div
+          id="solan-map-mobile"
+          className="absolute inset-0 w-full h-full z-0"
+          style={{ background: "#f5f3f0" }}
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Logistics Guide
-        </Link>
-
-        {/* ─── Header Panel ─── */}
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 md:p-8 space-y-6">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div className="space-y-3">
-              
-              {/* High visibility blue stream indicator dot */}
-              <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200/60 px-4 py-1.5 rounded-full text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                </span>
-                REAL-TIME SENSOR STREAM DEPLOYED
-              </div>
-
-              <h1 className="text-2xl sm:text-4xl font-serif font-black text-red-950">
-                🅿️ Live Map Traffic & Parking Tracker
-              </h1>
-              <p className="text-stone-600 text-xs sm:text-sm font-sans leading-relaxed max-w-3xl">
-                Observe live vehicle entries and exits mapped in real-time across Solan. Use the **Developer Sensor Simulator** to trigger hardware inflow/outflow events and watch the map popups and stats recompute instantly.
-              </p>
+          {!isLeafletLoaded && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 bg-stone-100 z-10">
+              <div className="w-8 h-8 border-[3px] border-amber-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-stone-500 font-serif">Initializing Solan Map...</p>
             </div>
+          )}
+        </div>
 
-            {/* Sync Status Badge */}
-            <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/50 p-2.5 rounded-xl shrink-0 self-start text-[11px] font-sans font-semibold text-stone-500 shadow-sm">
-              <Wifi className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              {lastUpdated ? (
-                <span>
-                  Last Poll: {lastUpdated.toLocaleTimeString("en-IN", { hour12: false })}
-                </span>
-              ) : (
-                <span>Connecting…</span>
-              )}
-              <button
-                onClick={fetchLiveParking}
-                className="hover:text-red-950 p-1 cursor-pointer transition-transform duration-300 hover:rotate-180"
-                aria-label="Refresh data"
-              >
-                <RefreshCw className="w-3 h-3 text-stone-400" />
-              </button>
-            </div>
+        {/* ── Floating header strip over the map ── */}
+        <div className="absolute top-0 left-0 right-0 z-[500] px-4 pt-3 pb-2 flex items-center justify-between gap-3 bg-gradient-to-b from-white/90 to-white/0 backdrop-blur-[2px]">
+          <div className="flex items-center gap-2">
+            <Link
+              href="/visitor-info"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/90 border border-slate-200 shadow-sm text-stone-600"
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <span className="text-sm font-serif font-black text-red-950">🅿️ Live Parking</span>
           </div>
 
-          {/* Quick Info Advisory */}
-          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200/60 rounded-2xl">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block font-serif">
-                Traffic Advisory
-              </span>
-              <p className="text-[11px] sm:text-xs text-amber-700 font-sans leading-relaxed">
-                Central Mall Road is strictly pedestrian-only from 12:00 PM – 11:00 PM. Follow the designated access routes (highlighted inside cards) to bypass city gridlocks.
-              </p>
-            </div>
+          {/* Live status pill */}
+          <div className="inline-flex items-center gap-1.5 bg-white/90 border border-blue-200/60 px-3 py-1.5 rounded-full text-[9px] font-black text-blue-600 uppercase tracking-widest shadow-sm">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500" />
+            </span>
+            Live
           </div>
         </div>
 
-        {/* ─── Split-Pane Layout Framework ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* Left Pane: Interactive Map Grid */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-3 relative">
-              
-              {/* Map Holder */}
-              <div
-                id="solan-map"
-                className="w-full h-[450px] md:h-[500px] rounded-2xl overflow-hidden relative z-0"
-                style={{ background: "#f5f3f0" }}
-              >
-                {/* Fallback while Leaflet JS script tags load */}
-                {!isLeafletLoaded && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 bg-stone-100 rounded-2xl z-10">
-                    <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-xs text-stone-500 font-serif">Initializing Solan Map Coordinates...</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Map Status Legend Box */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-wrap justify-between items-center gap-3">
-              <span className="text-[10px] font-sans font-bold text-stone-400 uppercase tracking-widest">
-                Map Markers:
+        {/* ── Bottom sheet drawer ── */}
+        <AnimatePresence initial={false}>
+          <motion.div
+            key="mobile-drawer"
+            initial={{ y: "calc(100% - 120px)" }}
+            animate={{ y: isDrawerOpen ? 0 : "calc(100% - 120px)" }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            className="absolute bottom-0 left-0 right-0 z-[1000] bg-white rounded-t-3xl shadow-[0_-8px_30px_rgb(0,0,0,0.09)] flex flex-col"
+            style={{ maxHeight: "calc(100vh - 64px - 48px)" }}
+          >
+            {/* Drag pill + tap-to-toggle */}
+            <button
+              className="w-full flex flex-col items-center pt-2 pb-1 cursor-pointer focus:outline-none min-h-[44px]"
+              onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+              aria-label={isDrawerOpen ? "Collapse drawer" : "Expand drawer"}
+            >
+              <div className="w-12 h-1 bg-slate-200 rounded-full mb-1" />
+              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest pb-1">
+                {isDrawerOpen ? "▾ Collapse" : "▴ Route Info"}
               </span>
-              <div className="flex flex-wrap gap-4">
-                {[
-                  { color: "bg-emerald-500", label: "Spaces Available (> 5 spots)", text: "text-emerald-700" },
-                  { color: "bg-orange-500 border-orange-200", label: "Critical Space (1-5 left)", text: "text-orange-700" },
-                  { color: "bg-rose-600", label: "HOUSEFULL (0 spots left)", text: "text-rose-700" },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-2 text-[10px] font-sans font-bold text-stone-600">
-                    <span className={`w-3.5 h-3.5 rounded-full ${item.color} border-2 border-white shadow-sm shrink-0`} />
-                    <span>{item.label}</span>
+            </button>
+
+            {/* ── Collapsed preview: Advisory + 4-route chips ── */}
+            <div className="px-5 pb-3 space-y-3 border-b border-slate-100">
+              {/* 4-route traffic chips */}
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: "route1", label: "Chambaghat", status: statuses.route1 },
+                  { key: "route2", label: "Saproon", status: statuses.route2 },
+                  { key: "route3", label: "NH-5 Bypass", status: statuses.route3 },
+                  { key: "route4", label: "Rajgarh Link", status: statuses.route4 },
+                ] as const).map(({ key, label, status }) => (
+                  <div key={key} className="flex items-center gap-2 px-3 py-2.5 bg-stone-50 rounded-xl border border-stone-100/60 min-h-[44px]">
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        status === "Red" ? "bg-red-500 animate-pulse" : status === "Orange" ? "bg-orange-400" : "bg-emerald-500"
+                      }`}
+                    />
+                    <div className="min-w-0">
+                      <span className="text-[9px] text-stone-400 font-bold uppercase tracking-wider block truncate">{label}</span>
+                      <span className="text-xs font-black text-stone-700">{status}</span>
+                    </div>
                   </div>
                 ))}
               </div>
+
+              {/* Smart advisory banner */}
+              <div className={`px-3 py-2.5 rounded-xl border text-xs font-medium font-sans leading-relaxed ${
+                (statuses.route2 === "Red" && statuses.route3 === "Red")
+                  ? "bg-red-50/70 border-red-100 text-red-800"
+                  : (statuses.route2 === "Red" || statuses.route3 === "Red")
+                  ? "bg-amber-50/70 border-amber-200/50 text-amber-900"
+                  : "bg-emerald-50/70 border-emerald-100 text-emerald-800"
+              }`}>
+                {statuses.route2 === "Red" && statuses.route3 === "Red"
+                  ? "⚠️ High congestion on main corridors. Use bypass routes & free shuttle."
+                  : statuses.route2 === "Red"
+                  ? "⚠️ Saproon entry congested. Consider Solan Bypass + RTO shuttle."
+                  : statuses.route3 === "Red"
+                  ? "⚠️ NH-5 Bypass gridlocked. Enter via Chambaghat for faster access."
+                  : "🟢 All entry corridors flowing normally. Parking accessible."}
+              </div>
             </div>
 
-            {/* 🎯 Smart Routing Assistant */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4 animate-fade-in">
-              <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
-                <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-                <h3 className="font-serif font-black text-xs sm:text-sm text-red-950 uppercase tracking-wider">
-                  🎯 Shoolini Fair Smart Routing Assistant
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {/* Route 1 status */}
-                <div className="p-3 bg-stone-50 rounded-xl border border-stone-100/50 space-y-1.5">
-                  <span className="text-[9px] text-stone-400 font-bold block uppercase tracking-wider">Route 1: Chambaghat</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${statuses.route1 === "Red" ? "bg-red-500 animate-pulse" : statuses.route1 === "Orange" ? "bg-orange-500" : "bg-emerald-500"}`} />
-                    <span className="text-[11px] font-black text-stone-700">{statuses.route1}</span>
-                  </div>
+            {/* ── Expanded content: Filter tabs + Zone cards ── */}
+            {isDrawerOpen && (
+              <div className="flex-1 overflow-y-auto px-5 pb-6 pt-4 space-y-4">
+                {/* Vehicle filter buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(["All", "Car Only", "Bike Only"] as FilterType[]).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setActiveFilter(f)}
+                      className={`px-4 rounded-xl text-xs font-bold font-sans border transition-all duration-200 cursor-pointer shadow-sm min-h-[44px] ${
+                        activeFilter === f
+                          ? "bg-amber-600 border-amber-600 text-white"
+                          : "bg-white text-stone-600 border-slate-200 hover:border-amber-400"
+                      }`}
+                    >
+                      {f === "All" ? "🚗 All" : f === "Car Only" ? "🚗 Cars" : "🏍️ Bikes"}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Route 2 status */}
-                <div className="p-3 bg-stone-50 rounded-xl border border-stone-100/50 space-y-1.5">
-                  <span className="text-[9px] text-stone-400 font-bold block uppercase tracking-wider">Route 2: Saproon</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${statuses.route2 === "Red" ? "bg-red-500 animate-pulse" : statuses.route2 === "Orange" ? "bg-orange-500" : "bg-emerald-500"}`} />
-                    <span className="text-[11px] font-black text-stone-700">{statuses.route2}</span>
-                  </div>
-                </div>
-
-                {/* Route 3 status */}
-                <div className="p-3 bg-stone-50 rounded-xl border border-stone-100/50 space-y-1.5">
-                  <span className="text-[9px] text-stone-400 font-bold block uppercase tracking-wider">Route 3: NH-5 Bypass</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${statuses.route3 === "Red" ? "bg-red-500 animate-pulse" : statuses.route3 === "Orange" ? "bg-orange-500" : "bg-emerald-500"}`} />
-                    <span className="text-[11px] font-black text-stone-700">{statuses.route3}</span>
-                  </div>
-                </div>
-
-                {/* Route 4 status */}
-                <div className="p-3 bg-stone-50 rounded-xl border border-stone-100/50 space-y-1.5">
-                  <span className="text-[9px] text-stone-400 font-bold block uppercase tracking-wider">Route 4: Rajgarh Shortcut</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${statuses.route4 === "Red" ? "bg-red-500 animate-pulse" : statuses.route4 === "Orange" ? "bg-orange-500" : "bg-emerald-500"}`} />
-                    <span className="text-[11px] font-black text-stone-700">{statuses.route4}</span>
-                  </div>
+                {/* Zone lot cards */}
+                <div className="space-y-4">
+                  {filteredZones.map((zone) => (
+                    <ZoneCard
+                      key={zone.parkingId}
+                      zone={zone}
+                      onSimulatePing={handleSimulatePing}
+                      onCommunityVote={handleCommunityVote}
+                    />
+                  ))}
                 </div>
               </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
 
-              {/* Dynamic recommendation advisory */}
-              <div className={`p-4 rounded-xl border ${
-                (statuses.route1 === "Red" && statuses.route2 === "Red" && statuses.route3 === "Red") || (statuses.route2 === "Red" && statuses.route3 === "Red")
-                  ? "bg-red-50/60 border-red-100 text-red-800"
-                  : statuses.route2 === "Red" || statuses.route3 === "Red"
-                  ? "bg-amber-50/60 border-amber-200/50 text-amber-900"
-                  : "bg-emerald-50/60 border-emerald-100 text-emerald-800"
-              } text-[11px] sm:text-xs font-medium font-sans leading-relaxed`}>
-                {(() => {
-                  const saproonChowkRed = statuses.route2 === "Red";
-                  const oldBusStandFull = zones.find(z => z.parkingId === "old-bus-stand")?.availableSpots === 0;
-                  const rajgarhShortcutGreen = statuses.route4 === "Green";
+        {/* Leaflet tooltip CSS — injected once per mount */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          .leaflet-route-tooltip {
+            background-color: rgba(30, 41, 59, 0.9) !important;
+            border: 1px solid rgba(255,255,255,0.15) !important;
+            border-radius: 4px !important;
+            color: #ffffff !important;
+            font-size: 8px !important;
+            font-weight: 800 !important;
+            padding: 2px 4px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+            white-space: nowrap !important;
+            pointer-events: none !important;
+          }
+          .leaflet-tooltip-left:before, .leaflet-tooltip-right:before { border: none !important; }
+          .custom-pulse-marker { background: transparent !important; border: none !important; }
+        `}} />
+      </div>
 
-                  if (saproonChowkRed && oldBusStandFull && rajgarhShortcutGreen) {
-                    return (
-                      <div className="flex gap-2 animate-pulse">
-                        <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 animate-spin" />
-                        <span>🎯 <b>Shoolini Mela Smart Route Advice:</b> Absolute bottleneck detected near the Old Bus Stand entry. Drivers looking to exit the town toward Chandigarh or outer parking fields are highly advised to take the Rajgarh Road Bypass Shortcut. This lane bypasses Mall Road entirely and drops you directly onto the clear NH-5 Bypass.</span>
-                      </div>
-                    );
-                  }
+      {/* ════════════════════════════════════════════════════════════════
+          DESKTOP LAYOUT  (hidden below lg)
+          Traditional 3-column scrollable page
+      ════════════════════════════════════════════════════════════════ */}
+      <section className="hidden lg:block min-h-screen bg-[#fcfbf9] py-8 px-6 relative overflow-hidden">
+        {/* Decorative background vectors */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-                  if (statuses.route1 === "Red" && statuses.route2 === "Red" && statuses.route3 === "Red") {
-                    return (
-                      <div className="flex gap-2">
-                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
-                        <span>🚘 <b>Peak Festival Rush Active:</b> High congestion across all town entry gates. Please utilize the outer bypass/buffer overflow lots and free RTO shuttles.</span>
-                      </div>
-                    );
-                  }
-                  if (statuses.route3 === "Red" && statuses.route1 === "Green") {
-                    return (
-                      <div className="flex gap-2">
-                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                        <span>⚠️ <b>Traffic Alert:</b> The NH-5 Bypass entry is currently gridlocked. Tourists arriving from Shimla/Chandigarh side are highly advised to divert through Chambaghat Chowk for faster access to vacant multi-level slots.</span>
-                      </div>
-                    );
-                  }
-                  if (statuses.route2 === "Red") {
-                    return (
-                      <div className="flex gap-2">
-                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                        <span>⚠️ <b>Traffic Alert:</b> The Southern Saproon Entry past the Old Bus Stand is highly congested. If you are arriving from the bypass, consider parking at Solan Bypass Mega Overflow and using the free RTO shuttle.</span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="flex gap-2">
-                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
-                      <span>🟢 <b>Traffic Flow Normal:</b> Primary entry routes into Solan Mall Road are clear. Multi-level and local parking zones are fully accessible.</span>
-                    </div>
-                  );
-                })()}
+        <div className="max-w-7xl mx-auto space-y-8 relative z-10">
+
+          {/* Back navigation */}
+          <Link
+            href="/visitor-info"
+            className="inline-flex items-center gap-2 text-xs font-sans font-bold text-stone-500 hover:text-red-950 transition-colors duration-200 min-h-[44px]"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Logistics Guide
+          </Link>
+
+          {/* ─── Header Panel ─── */}
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 xl:p-8 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200/60 px-4 py-1.5 rounded-full text-[10px] font-black text-blue-600 uppercase tracking-widest">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                  </span>
+                  REAL-TIME SENSOR STREAM DEPLOYED
+                </div>
+                <h1 className="text-3xl xl:text-4xl font-serif font-black text-red-950">
+                  🅿️ Live Map Traffic &amp; Parking Tracker
+                </h1>
+                <p className="text-stone-600 text-sm font-sans leading-relaxed max-w-3xl">
+                  Observe live vehicle entries and exits mapped in real-time across Solan. Use the Developer Sensor Simulator to trigger hardware inflow/outflow events and watch the map popups and stats recompute instantly.
+                </p>
               </div>
 
-              {/* Leaflet permanent tooltips styling overlay */}
-              <style dangerouslySetInnerHTML={{ __html: `
-                .leaflet-route-tooltip {
-                  background-color: rgba(30, 41, 59, 0.9) !important;
-                  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-                  border-radius: 4px !important;
-                  color: #ffffff !important;
-                  font-size: 8px !important;
-                  font-weight: 800 !important;
-                  padding: 2px 4px !important;
-                  box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-                  white-space: nowrap !important;
-                  pointer-events: none !important;
-                }
-                .leaflet-tooltip-left:before, .leaflet-tooltip-right:before {
-                  border: none !important;
-                }
-              `}} />
+              <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/50 p-2.5 rounded-xl shrink-0 self-start text-[11px] font-sans font-semibold text-stone-500 shadow-sm min-h-[44px]">
+                <Wifi className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                {lastUpdated ? (
+                  <span>Last Poll: {lastUpdated.toLocaleTimeString("en-IN", { hour12: false })}</span>
+                ) : (
+                  <span>Connecting…</span>
+                )}
+                <button
+                  onClick={fetchLiveParking}
+                  className="hover:text-red-950 p-1 cursor-pointer transition-transform duration-300 hover:rotate-180 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label="Refresh data"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200/60 rounded-2xl">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block font-serif">Traffic Advisory</span>
+                <p className="text-xs text-amber-700 font-sans leading-relaxed">
+                  Central Mall Road is strictly pedestrian-only from 12:00 PM – 11:00 PM. Follow the designated access routes (highlighted inside cards) to bypass city gridlocks.
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Right Pane: Filter Tabs & Active Occupancy Cards */}
-          <div className="lg:col-span-5 space-y-6">
-            
-            {/* Filter and Simulator Triggers */}
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                {(["All", "Car Only", "Bike Only"] as FilterType[]).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setActiveFilter(f)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold font-sans border transition-all duration-200 cursor-pointer shadow-sm ${
-                      activeFilter === f
-                        ? "bg-amber-600 border-amber-600 text-white"
-                        : "bg-white text-stone-600 border-slate-100 hover:border-amber-400"
-                    }`}
-                  >
-                    {f === "All" ? "🚗 All" : f === "Car Only" ? "🚗 Cars" : "🏍️ Bikes"}
-                  </button>
-                ))}
-              </div>
+          {/* ─── Desktop 3-column grid: map (2 cols) + panel (1 col) ─── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-              {/* Developer Emulator Panel Toggle */}
-              <button
-                onClick={() => setIsSimulatorOpen(!isSimulatorOpen)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-extrabold font-sans border cursor-pointer shadow-sm transition-all duration-200 ${
-                  isSimulatorOpen
-                    ? "bg-slate-900 border-slate-900 text-amber-400 font-black"
-                    : "bg-white text-stone-700 border-slate-100 hover:border-slate-300"
-                }`}
-              >
-                <Sliders className="w-3.5 h-3.5 shrink-0" />
-                <span>Sensor Emulator</span>
-              </button>
-            </div>
-
-            {/* Collapsible Developer Sensor Simulator Panel */}
-            <AnimatePresence>
-              {isSimulatorOpen && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-slate-900 text-white rounded-3xl p-5 border border-slate-800 shadow-md space-y-4 overflow-hidden"
+            {/* ── Left: Map (spans 2 of 3 cols) ── */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-3">
+                <div
+                  id="solan-map-desktop"
+                  className="w-full h-[480px] xl:h-[560px] rounded-2xl overflow-hidden relative z-0"
+                  style={{ background: "#f5f3f0" }}
                 >
-                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
-                    <h3 className="font-serif font-black text-xs text-amber-400 uppercase tracking-widest">
-                      Developer Sensor Simulator
-                    </h3>
-                  </div>
-
-                  {simulatorStatus && (
-                    <div className="text-[10px] font-mono text-emerald-400 bg-black/40 p-2 rounded-lg border border-slate-800">
-                      {simulatorStatus}
+                  {!isLeafletLoaded && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 bg-stone-100 rounded-2xl z-10">
+                      <div className="w-8 h-8 border-[3px] border-amber-500 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs text-stone-500 font-serif">Initializing Solan Map Coordinates...</p>
                     </div>
                   )}
+                </div>
+              </div>
 
-                  <div className="space-y-3 divide-y divide-slate-800/50">
-                    {zones.map((zone) => (
-                      <div key={zone.parkingId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 first:pt-0">
-                        <span className="text-[11px] font-serif font-black truncate max-w-[170px]">
-                          {zone.name}
-                        </span>
-                        
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            onClick={() => handleSimulatePing(zone.parkingId, "INFLOW")}
-                            className="bg-red-900/40 border border-red-800/80 hover:bg-red-900/60 active:scale-95 text-red-200 text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer transition-all leading-tight"
-                          >
-                            + INFLOW
-                          </button>
-                          <button
-                            onClick={() => handleSimulatePing(zone.parkingId, "OUTFLOW")}
-                            className="bg-emerald-900/40 border border-emerald-800/80 hover:bg-emerald-900/60 active:scale-95 text-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer transition-all leading-tight"
-                          >
-                            - OUTFLOW
-                          </button>
-                        </div>
+              {/* Map marker legend */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-wrap justify-between items-center gap-3">
+                <span className="text-[10px] font-sans font-bold text-stone-400 uppercase tracking-widest">Map Markers:</span>
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    { color: "bg-emerald-500", label: "Available (> 5 spots)" },
+                    { color: "bg-orange-500", label: "Critical (1-5 left)" },
+                    { color: "bg-rose-600", label: "HOUSEFULL" },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center gap-2 text-[10px] font-sans font-bold text-stone-600">
+                      <span className={`w-3.5 h-3.5 rounded-full ${item.color} border-2 border-white shadow-sm shrink-0`} />
+                      <span>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Smart Routing Assistant */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
+                <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
+                  <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                  <h3 className="font-serif font-black text-sm text-red-950 uppercase tracking-wider">
+                    🎯 Shoolini Fair Smart Routing Assistant
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                  {([
+                    { key: "route1", label: "Route 1: Chambaghat", status: statuses.route1 },
+                    { key: "route2", label: "Route 2: Saproon", status: statuses.route2 },
+                    { key: "route3", label: "Route 3: NH-5 Bypass", status: statuses.route3 },
+                    { key: "route4", label: "Route 4: Rajgarh Shortcut", status: statuses.route4 },
+                  ] as const).map(({ key, label, status }) => (
+                    <div key={key} className="p-3 bg-stone-50 rounded-xl border border-stone-100/50 space-y-1.5 min-h-[44px]">
+                      <span className="text-[9px] text-stone-400 font-bold block uppercase tracking-wider truncate">{label}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${
+                          status === "Red" ? "bg-red-500 animate-pulse" : status === "Orange" ? "bg-orange-500" : "bg-emerald-500"
+                        }`} />
+                        <span className="text-xs font-black text-stone-700">{status}</span>
                       </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    </div>
+                  ))}
+                </div>
 
-            {/* Zone cards — each isolated in a memo component so only the card
-                whose data changed re-renders; stable callbacks keep memo effective */}
-            <div className="space-y-4 max-h-[550px] overflow-y-auto pr-1">
-              {filteredZones.map((zone) => (
-                <ZoneCard
-                  key={zone.parkingId}
-                  zone={zone}
-                  onSimulatePing={handleSimulatePing}
-                  onCommunityVote={handleCommunityVote}
-                />
-              ))}
+                {/* Dynamic advisory */}
+                <div className={`p-4 rounded-xl border text-xs font-medium font-sans leading-relaxed ${
+                  (statuses.route1 === "Red" && statuses.route2 === "Red" && statuses.route3 === "Red") || (statuses.route2 === "Red" && statuses.route3 === "Red")
+                    ? "bg-red-50/60 border-red-100 text-red-800"
+                    : statuses.route2 === "Red" || statuses.route3 === "Red"
+                    ? "bg-amber-50/60 border-amber-200/50 text-amber-900"
+                    : "bg-emerald-50/60 border-emerald-100 text-emerald-800"
+                }`}>
+                  {(() => {
+                    const saproonRed = statuses.route2 === "Red";
+                    const busFull = zones.find(z => z.parkingId === "old-bus-stand")?.availableSpots === 0;
+                    const rajgarhGreen = statuses.route4 === "Green";
+                    if (saproonRed && busFull && rajgarhGreen) return (
+                      <div className="flex gap-2"><Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                        <span>🎯 <b>Smart Route Advice:</b> Bottleneck at Old Bus Stand. Use Rajgarh Road Bypass — bypasses Mall Road entirely onto clear NH-5.</span></div>
+                    );
+                    if (statuses.route1 === "Red" && statuses.route2 === "Red" && statuses.route3 === "Red") return (
+                      <div className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                        <span>🚘 <b>Peak Festival Rush:</b> High congestion on all entry gates. Use outer bypass lots and free RTO shuttles.</span></div>
+                    );
+                    if (statuses.route3 === "Red" && statuses.route1 === "Green") return (
+                      <div className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                        <span>⚠️ <b>Traffic Alert:</b> NH-5 Bypass gridlocked. Divert via Chambaghat Chowk for faster access.</span></div>
+                    );
+                    if (statuses.route2 === "Red") return (
+                      <div className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                        <span>⚠️ <b>Traffic Alert:</b> Saproon Entry congested. Park at Bypass Mega Overflow and take the free RTO shuttle.</span></div>
+                    );
+                    return (
+                      <div className="flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                        <span>🟢 <b>Traffic Flow Normal:</b> All primary entry routes into Solan Mall Road are clear and accessible.</span></div>
+                    );
+                  })()}
+                </div>
+
+                {/* Leaflet tooltip styles */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                  .leaflet-route-tooltip {
+                    background-color: rgba(30, 41, 59, 0.9) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+                    border-radius: 4px !important;
+                    color: #ffffff !important;
+                    font-size: 8px !important;
+                    font-weight: 800 !important;
+                    padding: 2px 4px !important;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+                    white-space: nowrap !important;
+                    pointer-events: none !important;
+                  }
+                  .leaflet-tooltip-left:before, .leaflet-tooltip-right:before { border: none !important; }
+                  .custom-pulse-marker { background: transparent !important; border: none !important; }
+                `}} />
+              </div>
+            </div>
+
+            {/* ── Right panel: Filter + Simulator + Zone cards ── */}
+            <div className="lg:col-span-1 space-y-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-100px)] lg:overflow-y-auto">
+
+              {/* Filter + Simulator trigger row */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  {(["All", "Car Only", "Bike Only"] as FilterType[]).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setActiveFilter(f)}
+                      className={`px-3 rounded-xl text-xs font-bold font-sans border transition-all duration-200 cursor-pointer shadow-sm min-h-[44px] ${
+                        activeFilter === f
+                          ? "bg-amber-600 border-amber-600 text-white"
+                          : "bg-white text-stone-600 border-slate-100 hover:border-amber-400"
+                      }`}
+                    >
+                      {f === "All" ? "🚗 All" : f === "Car Only" ? "🚗 Cars" : "🏍️ Bikes"}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setIsSimulatorOpen(!isSimulatorOpen)}
+                  className={`flex items-center gap-2 px-3 rounded-xl text-xs font-extrabold font-sans border cursor-pointer shadow-sm transition-all duration-200 min-h-[44px] ${
+                    isSimulatorOpen
+                      ? "bg-slate-900 border-slate-900 text-amber-400 font-black"
+                      : "bg-white text-stone-700 border-slate-100 hover:border-slate-300"
+                  }`}
+                >
+                  <Sliders className="w-3.5 h-3.5 shrink-0" />
+                  <span>Sensor Emulator</span>
+                </button>
+              </div>
+
+              {/* Collapsible Simulator Panel */}
+              <AnimatePresence>
+                {isSimulatorOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}
+                    className="bg-slate-900 text-white rounded-3xl p-5 border border-slate-800 shadow-md space-y-4 overflow-hidden"
+                  >
+                    <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                      <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
+                      <h3 className="font-serif font-black text-xs text-amber-400 uppercase tracking-widest">Developer Sensor Simulator</h3>
+                    </div>
+
+                    {simulatorStatus && (
+                      <div className="text-[10px] font-mono text-emerald-400 bg-black/40 p-2 rounded-lg border border-slate-800">
+                        {simulatorStatus}
+                      </div>
+                    )}
+
+                    <div className="space-y-3 divide-y divide-slate-800/50">
+                      {zones.map((zone) => (
+                        <div key={zone.parkingId} className="flex items-center justify-between gap-3 pt-3 first:pt-0">
+                          <span className="text-[11px] font-serif font-black truncate max-w-[140px] xl:max-w-[160px]">{zone.name}</span>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => handleSimulatePing(zone.parkingId, "INFLOW")}
+                              className="bg-red-900/40 border border-red-800/80 hover:bg-red-900/60 active:scale-95 text-red-200 text-[10px] font-bold px-2.5 min-h-[44px] rounded-lg cursor-pointer transition-all"
+                            >
+                              +IN
+                            </button>
+                            <button
+                              onClick={() => handleSimulatePing(zone.parkingId, "OUTFLOW")}
+                              className="bg-emerald-900/40 border border-emerald-800/80 hover:bg-emerald-900/60 active:scale-95 text-emerald-200 text-[10px] font-bold px-2.5 min-h-[44px] rounded-lg cursor-pointer transition-all"
+                            >
+                              −OUT
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Zone lot cards */}
+              <div className="space-y-4">
+                {filteredZones.map((zone) => (
+                  <ZoneCard
+                    key={zone.parkingId}
+                    zone={zone}
+                    onSimulatePing={handleSimulatePing}
+                    onCommunityVote={handleCommunityVote}
+                  />
+                ))}
+              </div>
             </div>
 
           </div>
-
         </div>
-
-      </div>
-    </section>
+      </section>
+    </>
   );
 }
+
